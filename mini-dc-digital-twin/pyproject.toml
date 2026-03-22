@@ -8,6 +8,7 @@ dependencies = [
     "clickhouse-connect==0.7.19",
     "fastapi==0.115.0",
     "paho-mqtt==2.1.0",
+    "prometheus-client==0.21.0",
     "python-dotenv==1.0.1",
     "uvicorn==0.30.6",
 ]

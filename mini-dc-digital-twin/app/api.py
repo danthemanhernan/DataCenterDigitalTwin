@@ -1,8 +1,10 @@
 import os
+import time
 
 import clickhouse_connect
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
 
 load_dotenv()
 
@@ -15,6 +17,30 @@ CLICKHOUSE_DATABASE = os.getenv("CLICKHOUSE_DATABASE", "dc_twin")
 
 app = FastAPI(title="Mini DC Digital Twin API", version="0.1.0")
 
+REQUEST_COUNT = Counter(
+    "dc_api_requests_total",
+    "Total HTTP requests handled by the API",
+    ["method", "path", "status_code"],
+)
+REQUEST_LATENCY = Histogram(
+    "dc_api_request_latency_seconds",
+    "HTTP request latency in seconds",
+    ["method", "path"],
+    buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0),
+)
+EXCEPTIONS_TOTAL = Counter(
+    "dc_api_exceptions_total",
+    "Unhandled exceptions raised by the API",
+    ["method", "path"],
+)
+APP_INFO = Gauge(
+    "dc_api_app_info",
+    "Static app info marker for dashboarding",
+    ["app_name", "version"],
+)
+
+APP_INFO.labels(app_name=app.title, version=app.version).set(1)
+
 
 def get_client():
     return clickhouse_connect.get_client(
@@ -26,9 +52,36 @@ def get_client():
     )
 
 
+@app.middleware("http")
+async def record_metrics(request: Request, call_next):
+    started = time.perf_counter()
+    path = request.url.path
+    method = request.method
+
+    if path == "/metrics":
+        return await call_next(request)
+
+    try:
+        response = await call_next(request)
+    except Exception:
+        EXCEPTIONS_TOTAL.labels(method=method, path=path).inc()
+        REQUEST_COUNT.labels(method=method, path=path, status_code="500").inc()
+        REQUEST_LATENCY.labels(method=method, path=path).observe(time.perf_counter() - started)
+        raise
+
+    REQUEST_COUNT.labels(method=method, path=path, status_code=str(response.status_code)).inc()
+    REQUEST_LATENCY.labels(method=method, path=path).observe(time.perf_counter() - started)
+    return response
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/metrics")
+def metrics() -> Response:
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
 @app.get("/alarms/active")

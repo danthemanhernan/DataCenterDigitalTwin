@@ -13,6 +13,7 @@ It simulates telemetry from racks, HVAC units, and power equipment, publishes th
 - Mosquitto MQTT
 - ClickHouse
 - Grafana
+- Prometheus
 
 ## Project Flow
 
@@ -54,10 +55,20 @@ uv run --package dc-digital-twin uvicorn app.api:app --reload --host 0.0.0.0 --p
 uv run --package dc-digital-twin python -m app.simulator
 ```
 
+7. Generate a bit of API traffic so the monitoring dashboard has data:
+
+```bash
+curl http://localhost:8000/health
+curl http://localhost:8000/summary
+curl "http://localhost:8000/telemetry/recent?limit=10"
+```
+
 ## Default Endpoints
 
 - API: `http://localhost:8000/docs`
+- API metrics: `http://localhost:8000/metrics`
 - Grafana: `http://localhost:3000`
+- Prometheus: `http://localhost:9090`
 - MQTT broker: `localhost:1883`
 - ClickHouse HTTP: `http://localhost:8123/play`
 
@@ -68,5 +79,6 @@ uv run --package dc-digital-twin python -m app.simulator
 - The SQL views are designed to be easy starting points for Grafana panels.
 - The repo uses a uv workspace at the root, with the app defined in `mini-dc-digital-twin/pyproject.toml`.
 - ClickHouse automatically applies the SQL files in `sql/` on first startup of a fresh `clickhouse_data` volume.
-- Grafana is built with the official ClickHouse datasource plugin preinstalled, provisions a datasource connected to the `clickhouse` container, and loads two starter dashboards.
+- Grafana provisions ClickHouse and Prometheus datasources automatically and loads starter dashboards for facility telemetry and API monitoring.
 - Default Grafana login comes from `.env`, and the provisioned home dashboard is `Mini DC Operations Overview`.
+- FastAPI exposes Prometheus-style metrics at `/metrics`, and Prometheus scrapes the API from `host.docker.internal:8000` for the API monitoring dashboard.

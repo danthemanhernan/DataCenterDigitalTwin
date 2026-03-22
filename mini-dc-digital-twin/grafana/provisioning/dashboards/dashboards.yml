@@ -1,0 +1,12 @@
+apiVersion: 1
+
+providers:
+  - name: mini-dc-dashboards
+    orgId: 1
+    folder: Mini DC Digital Twin
+    type: file
+    disableDeletion: false
+    editable: true
+    updateIntervalSeconds: 15
+    options:
+      path: /var/lib/grafana/dashboards

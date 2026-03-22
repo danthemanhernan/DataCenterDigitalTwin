@@ -368,8 +368,9 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
-            "fillOpacity": 12,
+            "fillOpacity": 10,
             "gradientMode": "none",
             "hideFrom": {
               "legend": false,
@@ -384,16 +385,36 @@
               "type": "linear"
             },
             "showPoints": "never",
+            "showValues": false,
             "spanNulls": false,
             "stacking": {
               "group": "A",
               "mode": "none"
             },
             "thresholdsStyle": {
-              "mode": "off"
-            }
+              "mode": "dashed"
+            },
+            "axisSoftMin": 20,
+            "axisSoftMax": 45
           },
           "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 32
+              },
+              {
+                "color": "red",
+                "value": 38
+              }
+            ]
+          },
           "unit": "celsius"
         },
         "overrides": []
@@ -413,11 +434,12 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "multi",
           "sort": "none"
         }
       },
-      "pluginVersion": "11.2.0",
+      "pluginVersion": "12.4.1",
       "targets": [
         {
           "datasource": {
@@ -438,12 +460,32 @@
           },
           "pluginVersion": "4.11.2",
           "queryType": "table",
-          "rawSql": "SELECT toStartOfMinute(ts) AS time, asset_id, avg(value) AS rack_temp_c FROM dc_twin.telemetry_raw WHERE $__timeFilter(ts) AND metric = 'rack_temp_c' GROUP BY time, asset_id ORDER BY time ASC",
+          "rawSql": "SELECT toStartOfMinute(ts) AS time, asset_id, max(value) AS rack_temp_c FROM dc_twin.telemetry_raw WHERE $__timeFilter(ts) AND metric = 'rack_temp_c' GROUP BY time, asset_id ORDER BY time ASC",
           "refId": "A"
         }
       ],
-      "title": "Rack Temperature Trends",
-      "type": "timeseries"
+      "title": "Rack Temperature Trends (Warn 32C, Crit 38C)",
+      "type": "timeseries",
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "asset_id"
+            ],
+            "keepFields": false,
+            "naming": {
+              "asLabels": false
+            }
+          }
+        },
+        {
+          "id": "prepareTimeSeries",
+          "options": {
+            "format": "multi"
+          }
+        }
+      ]
     },
     {
       "datasource": {
@@ -462,6 +504,7 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
@@ -478,16 +521,36 @@
               "type": "linear"
             },
             "showPoints": "never",
+            "showValues": false,
             "spanNulls": false,
             "stacking": {
               "group": "A",
               "mode": "none"
             },
             "thresholdsStyle": {
-              "mode": "off"
-            }
+              "mode": "dashed"
+            },
+            "axisSoftMin": 0,
+            "axisSoftMax": 10
           },
           "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 7
+              },
+              {
+                "color": "red",
+                "value": 9
+              }
+            ]
+          },
           "unit": "kwatt"
         },
         "overrides": []
@@ -507,11 +570,12 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "multi",
           "sort": "none"
         }
       },
-      "pluginVersion": "11.2.0",
+      "pluginVersion": "12.4.1",
       "targets": [
         {
           "datasource": {
@@ -532,12 +596,32 @@
           },
           "pluginVersion": "4.11.2",
           "queryType": "table",
-          "rawSql": "SELECT toStartOfMinute(ts) AS time, asset_id, avg(value) AS rack_kw FROM dc_twin.telemetry_raw WHERE $__timeFilter(ts) AND metric = 'rack_kw' GROUP BY time, asset_id ORDER BY time ASC",
+          "rawSql": "SELECT toStartOfMinute(ts) AS time, asset_id, max(value) AS rack_kw FROM dc_twin.telemetry_raw WHERE $__timeFilter(ts) AND metric = 'rack_kw' GROUP BY time, asset_id ORDER BY time ASC",
           "refId": "A"
         }
       ],
-      "title": "Rack Power Trends",
-      "type": "timeseries"
+      "title": "Rack Power Trends (Warn 7 kW, Crit 9 kW)",
+      "type": "timeseries",
+      "transformations": [
+        {
+          "id": "partitionByValues",
+          "options": {
+            "fields": [
+              "asset_id"
+            ],
+            "keepFields": false,
+            "naming": {
+              "asLabels": false
+            }
+          }
+        },
+        {
+          "id": "prepareTimeSeries",
+          "options": {
+            "format": "multi"
+          }
+        }
+      ]
     },
     {
       "datasource": {

@@ -1,10 +1,14 @@
 import os
 import time
+from typing import Any
 
 import clickhouse_connect
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, Response
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
+from pydantic import BaseModel, Field
+
+from .logic import SCENARIOS, get_active_simulator_scenario, serialize_timestamp, trigger_scenario
 
 load_dotenv()
 
@@ -40,6 +44,23 @@ APP_INFO = Gauge(
 )
 
 APP_INFO.labels(app_name=app.title, version=app.version).set(1)
+
+
+class PowerOutageRequest(BaseModel):
+    duration_seconds: int = Field(default=30, ge=5, le=600)
+
+
+def serialize_scenario_state(scenario: dict[str, Any] | None) -> dict[str, Any]:
+    if not scenario:
+        return {"active": False, "scenario": None}
+
+    return {
+        "active": True,
+        "scenario": scenario["scenario"],
+        "activated_at": serialize_timestamp(scenario["activated_at"]),
+        "expires_at": serialize_timestamp(scenario["expires_at"]),
+        "duration_seconds": scenario["duration_seconds"],
+    }
 
 
 def get_client():
@@ -82,6 +103,34 @@ def health() -> dict[str, str]:
 @app.get("/metrics")
 def metrics() -> Response:
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
+@app.get("/simulator/scenario")
+def simulator_scenario() -> dict[str, Any]:
+    return serialize_scenario_state(get_active_simulator_scenario())
+
+
+@app.get("/simulator/scenarios")
+def list_simulator_scenarios() -> dict[str, Any]:
+    return {"scenarios": SCENARIOS}
+
+
+@app.post("/simulator/scenarios/power-outage")
+def trigger_power_outage_scenario(payload: PowerOutageRequest) -> dict[str, Any]:
+    scenario = trigger_scenario("power_outage", duration_seconds=payload.duration_seconds)
+    return serialize_scenario_state(scenario)
+
+
+@app.post("/simulator/scenarios/cooling-degradation")
+def trigger_cooling_degradation_scenario(payload: PowerOutageRequest) -> dict[str, Any]:
+    scenario = trigger_scenario("cooling_degradation", duration_seconds=payload.duration_seconds)
+    return serialize_scenario_state(scenario)
+
+
+@app.post("/simulator/scenarios/load-transfer")
+def trigger_load_transfer_scenario(payload: PowerOutageRequest) -> dict[str, Any]:
+    scenario = trigger_scenario("load_transfer", duration_seconds=payload.duration_seconds)
+    return serialize_scenario_state(scenario)
 
 
 @app.get("/alarms/active")

@@ -6,6 +6,7 @@ Use the provisioned ClickHouse datasource named `ClickHouse` against database `d
 
 - `Mini DC Operations Overview`
 - `Mini DC Facility Trends`
+- `Mini DC Asset Metric Trends`
 
 ## Suggested Panels
 
@@ -23,6 +24,9 @@ Use the provisioned ClickHouse datasource named `ClickHouse` against database `d
 - `asset_type`
 - `asset_id`
 - `metric`
+- `rack_asset`
+- `hvac_asset`
+- `power_asset`
 
 ## Example Query
 
@@ -41,3 +45,6 @@ ORDER BY time ASC
 - `warning` as amber
 - `critical` as red
 - `normal` as green when used in state timeline panels
+- Trend dashboards should use dashed threshold lines that match `app/logic.py` alarm rules.
+- Trend panels should apply the `Partition by values` transform on `asset_id` and `Prepare time series` so one query cleanly splits into per-asset lines.
+- Use `max(value)` for high-is-bad metrics and `min(value)` for low-battery trends so the graph reflects alarm-driving excursions.

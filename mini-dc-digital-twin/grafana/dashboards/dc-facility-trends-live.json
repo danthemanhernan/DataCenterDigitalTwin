@@ -32,40 +32,23 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
+            "axisSoftMin": 20,
+            "axisSoftMax": 45,
             "drawStyle": "line",
             "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
             "lineWidth": 2,
             "pointSize": 3,
             "scaleDistribution": {
               "type": "linear"
             },
             "showPoints": "never",
-            "showValues": false,
-            "spanNulls": false,
             "stacking": {
               "group": "A",
               "mode": "none"
             },
             "thresholdsStyle": {
               "mode": "dashed"
-            },
-            "axisSoftMin": 20,
-            "axisSoftMax": 45
+            }
           },
           "thresholds": {
             "mode": "absolute",
@@ -97,18 +80,15 @@
       "id": 1,
       "options": {
         "legend": {
-          "calcs": [],
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
-          "hideZeros": false,
           "mode": "multi",
           "sort": "none"
         }
       },
-      "pluginVersion": "12.4.1",
       "targets": [
         {
           "datasource": {
@@ -117,24 +97,12 @@
           },
           "editorType": "sql",
           "format": 1,
-          "meta": {
-            "builderOptions": {
-              "columns": [],
-              "database": "dc_twin",
-              "limit": 1000,
-              "mode": "list",
-              "queryType": "table",
-              "table": ""
-            }
-          },
-          "pluginVersion": "4.11.2",
           "queryType": "table",
-          "rawSql": "SELECT toStartOfMinute(ts) AS time, asset_id, max(value) AS value FROM dc_twin.telemetry_raw WHERE $__timeFilter(ts) AND metric = 'rack_temp_c' GROUP BY time, asset_id ORDER BY time ASC",
+          "rawSql": "SELECT ts AS time, asset_id, value FROM dc_twin.telemetry_raw WHERE $__timeFilter(ts) AND metric = 'rack_temp_c' ORDER BY time ASC",
           "refId": "A"
         }
       ],
       "title": "Rack Temperature (Warn 32C, Crit 38C)",
-      "type": "timeseries",
       "transformations": [
         {
           "id": "partitionByValues",
@@ -154,7 +122,8 @@
             "format": "multi"
           }
         }
-      ]
+      ],
+      "type": "timeseries"
     },
     {
       "datasource": {
@@ -167,40 +136,23 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
+            "axisSoftMin": 0,
+            "axisSoftMax": 10,
             "drawStyle": "line",
             "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
             "lineWidth": 2,
             "pointSize": 3,
             "scaleDistribution": {
               "type": "linear"
             },
             "showPoints": "never",
-            "showValues": false,
-            "spanNulls": false,
             "stacking": {
               "group": "A",
               "mode": "none"
             },
             "thresholdsStyle": {
               "mode": "dashed"
-            },
-            "axisSoftMin": 0,
-            "axisSoftMax": 10
+            }
           },
           "thresholds": {
             "mode": "absolute",
@@ -232,18 +184,15 @@
       "id": 2,
       "options": {
         "legend": {
-          "calcs": [],
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
-          "hideZeros": false,
           "mode": "multi",
           "sort": "none"
         }
       },
-      "pluginVersion": "12.4.1",
       "targets": [
         {
           "datasource": {
@@ -252,24 +201,12 @@
           },
           "editorType": "sql",
           "format": 1,
-          "meta": {
-            "builderOptions": {
-              "columns": [],
-              "database": "dc_twin",
-              "limit": 1000,
-              "mode": "list",
-              "queryType": "table",
-              "table": ""
-            }
-          },
-          "pluginVersion": "4.11.2",
           "queryType": "table",
-          "rawSql": "SELECT toStartOfMinute(ts) AS time, asset_id, max(value) AS value FROM dc_twin.telemetry_raw WHERE $__timeFilter(ts) AND metric = 'rack_kw' GROUP BY time, asset_id ORDER BY time ASC",
+          "rawSql": "SELECT ts AS time, asset_id, value FROM dc_twin.telemetry_raw WHERE $__timeFilter(ts) AND metric = 'rack_kw' ORDER BY time ASC",
           "refId": "A"
         }
       ],
       "title": "Rack Power (Warn 7 kW, Crit 9 kW)",
-      "type": "timeseries",
       "transformations": [
         {
           "id": "partitionByValues",
@@ -289,7 +226,8 @@
             "format": "multi"
           }
         }
-      ]
+      ],
+      "type": "timeseries"
     },
     {
       "datasource": {
@@ -302,40 +240,23 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
+            "axisSoftMin": 15,
+            "axisSoftMax": 32,
             "drawStyle": "line",
             "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
             "lineWidth": 2,
             "pointSize": 3,
             "scaleDistribution": {
               "type": "linear"
             },
             "showPoints": "never",
-            "showValues": false,
-            "spanNulls": false,
             "stacking": {
               "group": "A",
               "mode": "none"
             },
             "thresholdsStyle": {
               "mode": "dashed"
-            },
-            "axisSoftMin": 15,
-            "axisSoftMax": 32
+            }
           },
           "thresholds": {
             "mode": "absolute",
@@ -367,18 +288,15 @@
       "id": 3,
       "options": {
         "legend": {
-          "calcs": [],
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
-          "hideZeros": false,
           "mode": "multi",
           "sort": "none"
         }
       },
-      "pluginVersion": "12.4.1",
       "targets": [
         {
           "datasource": {
@@ -387,24 +305,12 @@
           },
           "editorType": "sql",
           "format": 1,
-          "meta": {
-            "builderOptions": {
-              "columns": [],
-              "database": "dc_twin",
-              "limit": 1000,
-              "mode": "list",
-              "queryType": "table",
-              "table": ""
-            }
-          },
-          "pluginVersion": "4.11.2",
           "queryType": "table",
-          "rawSql": "SELECT toStartOfMinute(ts) AS time, asset_id, max(value) AS value FROM dc_twin.telemetry_raw WHERE $__timeFilter(ts) AND metric = 'hvac_supply_temp_c' GROUP BY time, asset_id ORDER BY time ASC",
+          "rawSql": "SELECT ts AS time, asset_id, value FROM dc_twin.telemetry_raw WHERE $__timeFilter(ts) AND metric = 'hvac_supply_temp_c' ORDER BY time ASC",
           "refId": "A"
         }
       ],
       "title": "HVAC Supply Temp (Warn 24C, Crit 28C)",
-      "type": "timeseries",
       "transformations": [
         {
           "id": "partitionByValues",
@@ -424,7 +330,8 @@
             "format": "multi"
           }
         }
-      ]
+      ],
+      "type": "timeseries"
     },
     {
       "datasource": {
@@ -437,40 +344,23 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
+            "axisSoftMin": 24,
+            "axisSoftMax": 45,
             "drawStyle": "line",
             "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
             "lineWidth": 2,
             "pointSize": 3,
             "scaleDistribution": {
               "type": "linear"
             },
             "showPoints": "never",
-            "showValues": false,
-            "spanNulls": false,
             "stacking": {
               "group": "A",
               "mode": "none"
             },
             "thresholdsStyle": {
               "mode": "dashed"
-            },
-            "axisSoftMin": 24,
-            "axisSoftMax": 45
+            }
           },
           "thresholds": {
             "mode": "absolute",
@@ -502,18 +392,15 @@
       "id": 4,
       "options": {
         "legend": {
-          "calcs": [],
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
-          "hideZeros": false,
           "mode": "multi",
           "sort": "none"
         }
       },
-      "pluginVersion": "12.4.1",
       "targets": [
         {
           "datasource": {
@@ -522,24 +409,12 @@
           },
           "editorType": "sql",
           "format": 1,
-          "meta": {
-            "builderOptions": {
-              "columns": [],
-              "database": "dc_twin",
-              "limit": 1000,
-              "mode": "list",
-              "queryType": "table",
-              "table": ""
-            }
-          },
-          "pluginVersion": "4.11.2",
           "queryType": "table",
-          "rawSql": "SELECT toStartOfMinute(ts) AS time, asset_id, max(value) AS value FROM dc_twin.telemetry_raw WHERE $__timeFilter(ts) AND metric = 'hvac_return_temp_c' GROUP BY time, asset_id ORDER BY time ASC",
+          "rawSql": "SELECT ts AS time, asset_id, value FROM dc_twin.telemetry_raw WHERE $__timeFilter(ts) AND metric = 'hvac_return_temp_c' ORDER BY time ASC",
           "refId": "A"
         }
       ],
       "title": "HVAC Return Temp (Warn 34C, Crit 40C)",
-      "type": "timeseries",
       "transformations": [
         {
           "id": "partitionByValues",
@@ -559,7 +434,8 @@
             "format": "multi"
           }
         }
-      ]
+      ],
+      "type": "timeseries"
     },
     {
       "datasource": {
@@ -572,40 +448,23 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
+            "axisSoftMin": 0,
+            "axisSoftMax": 100,
             "drawStyle": "line",
             "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
             "lineWidth": 2,
             "pointSize": 3,
             "scaleDistribution": {
               "type": "linear"
             },
             "showPoints": "never",
-            "showValues": false,
-            "spanNulls": false,
             "stacking": {
               "group": "A",
               "mode": "none"
             },
             "thresholdsStyle": {
               "mode": "dashed"
-            },
-            "axisSoftMin": 0,
-            "axisSoftMax": 100
+            }
           },
           "thresholds": {
             "mode": "absolute",
@@ -637,18 +496,15 @@
       "id": 5,
       "options": {
         "legend": {
-          "calcs": [],
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
-          "hideZeros": false,
           "mode": "multi",
           "sort": "none"
         }
       },
-      "pluginVersion": "12.4.1",
       "targets": [
         {
           "datasource": {
@@ -657,24 +513,12 @@
           },
           "editorType": "sql",
           "format": 1,
-          "meta": {
-            "builderOptions": {
-              "columns": [],
-              "database": "dc_twin",
-              "limit": 1000,
-              "mode": "list",
-              "queryType": "table",
-              "table": ""
-            }
-          },
-          "pluginVersion": "4.11.2",
           "queryType": "table",
-          "rawSql": "SELECT toStartOfMinute(ts) AS time, asset_id, max(value) AS value FROM dc_twin.telemetry_raw WHERE $__timeFilter(ts) AND metric = 'hvac_fan_speed_pct' GROUP BY time, asset_id ORDER BY time ASC",
+          "rawSql": "SELECT ts AS time, asset_id, value FROM dc_twin.telemetry_raw WHERE $__timeFilter(ts) AND metric = 'hvac_fan_speed_pct' ORDER BY time ASC",
           "refId": "A"
         }
       ],
       "title": "HVAC Fan Speed (Warn 90%, Crit 97%)",
-      "type": "timeseries",
       "transformations": [
         {
           "id": "partitionByValues",
@@ -694,7 +538,8 @@
             "format": "multi"
           }
         }
-      ]
+      ],
+      "type": "timeseries"
     },
     {
       "datasource": {
@@ -707,40 +552,23 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
+            "axisSoftMin": 0,
+            "axisSoftMax": 100,
             "drawStyle": "line",
             "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
             "lineWidth": 2,
             "pointSize": 3,
             "scaleDistribution": {
               "type": "linear"
             },
             "showPoints": "never",
-            "showValues": false,
-            "spanNulls": false,
             "stacking": {
               "group": "A",
               "mode": "none"
             },
             "thresholdsStyle": {
               "mode": "dashed"
-            },
-            "axisSoftMin": 0,
-            "axisSoftMax": 100
+            }
           },
           "thresholds": {
             "mode": "absolute",
@@ -772,18 +600,15 @@
       "id": 6,
       "options": {
         "legend": {
-          "calcs": [],
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
-          "hideZeros": false,
           "mode": "multi",
           "sort": "none"
         }
       },
-      "pluginVersion": "12.4.1",
       "targets": [
         {
           "datasource": {
@@ -792,24 +617,12 @@
           },
           "editorType": "sql",
           "format": 1,
-          "meta": {
-            "builderOptions": {
-              "columns": [],
-              "database": "dc_twin",
-              "limit": 1000,
-              "mode": "list",
-              "queryType": "table",
-              "table": ""
-            }
-          },
-          "pluginVersion": "4.11.2",
           "queryType": "table",
-          "rawSql": "SELECT toStartOfMinute(ts) AS time, asset_id, max(value) AS value FROM dc_twin.telemetry_raw WHERE $__timeFilter(ts) AND metric = 'ups_load_pct' GROUP BY time, asset_id ORDER BY time ASC",
+          "rawSql": "SELECT ts AS time, asset_id, value FROM dc_twin.telemetry_raw WHERE $__timeFilter(ts) AND metric = 'ups_load_pct' ORDER BY time ASC",
           "refId": "A"
         }
       ],
       "title": "UPS Load (Warn 80%, Crit 92%)",
-      "type": "timeseries",
       "transformations": [
         {
           "id": "partitionByValues",
@@ -829,7 +642,8 @@
             "format": "multi"
           }
         }
-      ]
+      ],
+      "type": "timeseries"
     },
     {
       "datasource": {
@@ -842,40 +656,23 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
+            "axisSoftMin": 0,
+            "axisSoftMax": 100,
             "drawStyle": "line",
             "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
             "lineWidth": 2,
             "pointSize": 3,
             "scaleDistribution": {
               "type": "linear"
             },
             "showPoints": "never",
-            "showValues": false,
-            "spanNulls": false,
             "stacking": {
               "group": "A",
               "mode": "none"
             },
             "thresholdsStyle": {
               "mode": "dashed"
-            },
-            "axisSoftMin": 0,
-            "axisSoftMax": 100
+            }
           },
           "thresholds": {
             "mode": "absolute",
@@ -907,18 +704,15 @@
       "id": 7,
       "options": {
         "legend": {
-          "calcs": [],
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
-          "hideZeros": false,
           "mode": "multi",
           "sort": "none"
         }
       },
-      "pluginVersion": "12.4.1",
       "targets": [
         {
           "datasource": {
@@ -927,24 +721,12 @@
           },
           "editorType": "sql",
           "format": 1,
-          "meta": {
-            "builderOptions": {
-              "columns": [],
-              "database": "dc_twin",
-              "limit": 1000,
-              "mode": "list",
-              "queryType": "table",
-              "table": ""
-            }
-          },
-          "pluginVersion": "4.11.2",
           "queryType": "table",
-          "rawSql": "SELECT toStartOfMinute(ts) AS time, asset_id, min(value) AS value FROM dc_twin.telemetry_raw WHERE $__timeFilter(ts) AND metric = 'ups_battery_pct' GROUP BY time, asset_id ORDER BY time ASC",
+          "rawSql": "SELECT ts AS time, asset_id, value FROM dc_twin.telemetry_raw WHERE $__timeFilter(ts) AND metric = 'ups_battery_pct' ORDER BY time ASC",
           "refId": "A"
         }
       ],
       "title": "UPS Battery (Warn <30%, Crit <20%)",
-      "type": "timeseries",
       "transformations": [
         {
           "id": "partitionByValues",
@@ -964,7 +746,8 @@
             "format": "multi"
           }
         }
-      ]
+      ],
+      "type": "timeseries"
     },
     {
       "datasource": {
@@ -977,40 +760,23 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
+            "axisSoftMin": 0,
+            "axisSoftMax": 100,
             "drawStyle": "line",
             "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
             "lineWidth": 2,
             "pointSize": 3,
             "scaleDistribution": {
               "type": "linear"
             },
             "showPoints": "never",
-            "showValues": false,
-            "spanNulls": false,
             "stacking": {
               "group": "A",
               "mode": "none"
             },
             "thresholdsStyle": {
               "mode": "dashed"
-            },
-            "axisSoftMin": 0,
-            "axisSoftMax": 100
+            }
           },
           "thresholds": {
             "mode": "absolute",
@@ -1042,18 +808,15 @@
       "id": 8,
       "options": {
         "legend": {
-          "calcs": [],
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
-          "hideZeros": false,
           "mode": "multi",
           "sort": "none"
         }
       },
-      "pluginVersion": "12.4.1",
       "targets": [
         {
           "datasource": {
@@ -1062,24 +825,12 @@
           },
           "editorType": "sql",
           "format": 1,
-          "meta": {
-            "builderOptions": {
-              "columns": [],
-              "database": "dc_twin",
-              "limit": 1000,
-              "mode": "list",
-              "queryType": "table",
-              "table": ""
-            }
-          },
-          "pluginVersion": "4.11.2",
           "queryType": "table",
-          "rawSql": "SELECT toStartOfMinute(ts) AS time, asset_id, max(value) AS value FROM dc_twin.telemetry_raw WHERE $__timeFilter(ts) AND metric = 'pdu_branch_load_pct' GROUP BY time, asset_id ORDER BY time ASC",
+          "rawSql": "SELECT ts AS time, asset_id, value FROM dc_twin.telemetry_raw WHERE $__timeFilter(ts) AND metric = 'pdu_branch_load_pct' ORDER BY time ASC",
           "refId": "A"
         }
       ],
       "title": "PDU Branch Load (Warn 75%, Crit 90%)",
-      "type": "timeseries",
       "transformations": [
         {
           "id": "partitionByValues",
@@ -1099,29 +850,30 @@
             "format": "multi"
           }
         }
-      ]
+      ],
+      "type": "timeseries"
     }
   ],
-  "refresh": "10s",
+  "refresh": "5s",
   "schemaVersion": 39,
   "style": "dark",
   "tags": [
     "clickhouse",
     "trends",
     "thresholds",
-    "alarms"
+    "live"
   ],
   "templating": {
     "list": []
   },
   "time": {
-    "from": "now-6h",
+    "from": "now-30m",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "",
-  "title": "Mini DC Facility Trends",
-  "uid": "dc-facility-trends",
-  "version": 2,
+  "title": "Mini DC Facility Trends Live",
+  "uid": "dc-facility-trends-live",
+  "version": 1,
   "weekStart": ""
 }

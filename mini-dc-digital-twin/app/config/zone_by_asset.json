@@ -1,0 +1,12 @@
+{
+  "rack-a01": "white-space-1",
+  "rack-a02": "white-space-1",
+  "rack-b01": "white-space-2",
+  "rack-b02": "white-space-2",
+  "hvac-1": "cooling-plant",
+  "hvac-2": "cooling-plant",
+  "ups-1": "electrical-room",
+  "ups-2": "electrical-room",
+  "pdu-1": "electrical-room",
+  "pdu-2": "electrical-room"
+}

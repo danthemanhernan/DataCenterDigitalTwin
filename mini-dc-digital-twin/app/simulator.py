@@ -3,10 +3,18 @@ import os
 import time
 
 import paho.mqtt.client as mqtt
-from paho.mqtt.client import CallbackAPIVersion
 from dotenv import load_dotenv
+from paho.mqtt.client import CallbackAPIVersion
 
-from .logic import generate_simulated_points, serialize_timestamp, topic_for
+from .logic import (
+    generate_cooling_degradation_points,
+    generate_load_transfer_points,
+    generate_power_outage_points,
+    generate_simulated_points,
+    get_active_simulator_scenario,
+    serialize_timestamp,
+    topic_for,
+)
 
 load_dotenv()
 
@@ -23,7 +31,23 @@ def main() -> None:
 
     print(f"Publishing simulated telemetry to mqtt://{MQTT_HOST}:{MQTT_PORT}")
     while True:
-        for point in generate_simulated_points():
+        scenario = get_active_simulator_scenario()
+        scenario_name = scenario["scenario"] if scenario else None
+        scenario_generators = {
+            "power_outage": generate_power_outage_points,
+            "cooling_degradation": generate_cooling_degradation_points,
+            "load_transfer": generate_load_transfer_points,
+        }
+        generator = scenario_generators.get(scenario_name)
+        points = generator(scenario) if generator else generate_simulated_points()
+
+        if scenario:
+            print(
+                "active scenario "
+                f"{scenario['scenario']} until {serialize_timestamp(scenario['expires_at'])}"
+            )
+
+        for point in points:
             topic = topic_for(point["asset_type"], point["asset_id"], MQTT_TOPIC_ROOT)
             payload = json.dumps(
                 {

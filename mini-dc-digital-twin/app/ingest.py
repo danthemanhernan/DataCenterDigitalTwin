@@ -3,10 +3,10 @@ from typing import Any
 
 import clickhouse_connect
 import paho.mqtt.client as mqtt
-from paho.mqtt.client import CallbackAPIVersion
 from dotenv import load_dotenv
+from paho.mqtt.client import CallbackAPIVersion
 
-from logic import normalize_message, parse_payload
+from .logic import normalize_message, parse_payload
 
 load_dotenv()
 
@@ -68,17 +68,27 @@ def insert_telemetry(ch_client: Any, row: dict[str, Any]) -> None:
     )
 
 
-def on_connect(client: mqtt.Client, userdata: dict[str, Any], flags: dict[str, Any], reason_code, properties) -> None:
+def on_connect(
+    client: mqtt.Client,
+    userdata: dict[str, Any],
+    flags: dict[str, Any],
+    reason_code,
+    properties,
+) -> None:
     topic = f"{MQTT_TOPIC_ROOT}/#"
     client.subscribe(topic)
     print(f"Subscribed to {topic}")
 
 
-def on_message(client: mqtt.Client, userdata: dict[str, Any], msg: mqtt.MQTTMessage) -> None:
+def on_message(
+    client: mqtt.Client, userdata: dict[str, Any], msg: mqtt.MQTTMessage
+) -> None:
     payload = parse_payload(msg.payload)
     normalized = normalize_message(msg.topic, payload)
     insert_telemetry(userdata["clickhouse"], normalized)
-    print(f"ingested {normalized['asset_id']} {normalized['metric']}={normalized['value']} status={normalized['status']}")
+    print(
+        f"ingested {normalized['asset_id']} {normalized['metric']}={normalized['value']} status={normalized['status']}"
+    )
 
 
 def main() -> None:

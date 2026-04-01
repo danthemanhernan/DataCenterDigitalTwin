@@ -1,0 +1,43 @@
+{
+  "rack_temp_c": {
+    "warn": 32.0,
+    "crit": 38.0,
+    "message": "Rack inlet temperature high"
+  },
+  "rack_kw": {
+    "warn": 7.0,
+    "crit": 9.0,
+    "message": "Rack power draw high"
+  },
+  "hvac_supply_temp_c": {
+    "warn": 24.0,
+    "crit": 28.0,
+    "message": "HVAC supply air too warm"
+  },
+  "hvac_return_temp_c": {
+    "warn": 34.0,
+    "crit": 40.0,
+    "message": "HVAC return air high"
+  },
+  "hvac_fan_speed_pct": {
+    "warn": 90.0,
+    "crit": 97.0,
+    "message": "HVAC fan near maximum"
+  },
+  "ups_load_pct": {
+    "warn": 80.0,
+    "crit": 92.0,
+    "message": "UPS load high"
+  },
+  "ups_battery_pct": {
+    "warn": 30.0,
+    "crit": 20.0,
+    "message": "UPS battery low",
+    "inverse": true
+  },
+  "pdu_branch_load_pct": {
+    "warn": 75.0,
+    "crit": 90.0,
+    "message": "PDU branch nearing limit"
+  }
+}

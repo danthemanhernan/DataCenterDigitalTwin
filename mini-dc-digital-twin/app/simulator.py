@@ -3,8 +3,8 @@ import os
 import time
 
 import paho.mqtt.client as mqtt
-from paho.mqtt.client import CallbackAPIVersion
 from dotenv import load_dotenv
+from paho.mqtt.client import CallbackAPIVersion
 
 from .logic import (
     generate_cooling_degradation_points,
@@ -38,7 +38,8 @@ def main() -> None:
             "cooling_degradation": generate_cooling_degradation_points,
             "load_transfer": generate_load_transfer_points,
         }
-        points = scenario_generators.get(scenario_name, generate_simulated_points)()
+        generator = scenario_generators.get(scenario_name)
+        points = generator(scenario) if generator else generate_simulated_points()
 
         if scenario:
             print(

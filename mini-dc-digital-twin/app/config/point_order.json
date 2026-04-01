@@ -1,0 +1,18 @@
+[
+  ["rack", "rack-a01", "rack_temp_c"],
+  ["rack", "rack-a01", "rack_kw"],
+  ["rack", "rack-b02", "rack_temp_c"],
+  ["rack", "rack-b02", "rack_kw"],
+  ["hvac", "hvac-1", "hvac_supply_temp_c"],
+  ["hvac", "hvac-1", "hvac_return_temp_c"],
+  ["hvac", "hvac-1", "hvac_fan_speed_pct"],
+  ["hvac", "hvac-2", "hvac_supply_temp_c"],
+  ["hvac", "hvac-2", "hvac_return_temp_c"],
+  ["hvac", "hvac-2", "hvac_fan_speed_pct"],
+  ["power", "ups-1", "ups_load_pct"],
+  ["power", "ups-1", "ups_battery_pct"],
+  ["power", "ups-2", "ups_load_pct"],
+  ["power", "ups-2", "ups_battery_pct"],
+  ["power", "pdu-1", "pdu_branch_load_pct"],
+  ["power", "pdu-2", "pdu_branch_load_pct"]
+]

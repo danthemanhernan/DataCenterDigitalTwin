@@ -1,0 +1,10 @@
+{
+  "rack_temp_c": "C",
+  "rack_kw": "kW",
+  "hvac_supply_temp_c": "C",
+  "hvac_return_temp_c": "C",
+  "hvac_fan_speed_pct": "%",
+  "ups_load_pct": "%",
+  "ups_battery_pct": "%",
+  "pdu_branch_load_pct": "%"
+}

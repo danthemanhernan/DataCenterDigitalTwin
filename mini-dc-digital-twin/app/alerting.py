@@ -207,7 +207,7 @@ def get_alert_state(client: Any, alert_key: str) -> dict[str, Any]:
         """,
         parameters={"alert_key": alert_key},
     )
-    rows = result.named_results()
+    rows = list(result.named_results())
     if not rows:
         return {
             "alert_key": alert_key,
@@ -238,7 +238,8 @@ def record_alert_action(
     muted_until: Any = None,
 ) -> dict[str, Any]:
     ensure_alerting_schema(client)
-    ts = client.query("SELECT now64(3) AS ts").named_results()[0]["ts"]
+    ts_row = next(client.query("SELECT now64(3) AS ts").named_results())
+    ts = ts_row["ts"]
     client.insert(
         table="alert_actions",
         data=[[ts, alert_key, action, actor, note, muted_until]],

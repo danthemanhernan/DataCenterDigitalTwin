@@ -1,19 +1,34 @@
 import os
 import time
-from typing import Any
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 import clickhouse_connect
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, Response
-from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
+from prometheus_client import (
+    CONTENT_TYPE_LATEST,
+    Counter,
+    Gauge,
+    Histogram,
+    generate_latest,
+)
 from pydantic import BaseModel, Field
 
-from .alerting import ALERT_RULES, ensure_alerting_schema, get_alert_state, record_alert_action
-from .logic import SCENARIOS, get_active_simulator_scenario, serialize_timestamp, trigger_scenario
+from .alerting import (
+    ALERT_RULES,
+    ensure_alerting_schema,
+    get_alert_state,
+    record_alert_action,
+)
+from .logic import (
+    SCENARIOS,
+    get_active_simulator_scenario,
+    serialize_timestamp,
+    trigger_scenario,
+)
 
 load_dotenv()
-
 
 CLICKHOUSE_HOST = os.getenv("CLICKHOUSE_HOST", "localhost")
 CLICKHOUSE_PORT = int(os.getenv("CLICKHOUSE_PORT", "8123"))
@@ -109,11 +124,17 @@ async def record_metrics(request: Request, call_next):
     except Exception:
         EXCEPTIONS_TOTAL.labels(method=method, path=path).inc()
         REQUEST_COUNT.labels(method=method, path=path, status_code="500").inc()
-        REQUEST_LATENCY.labels(method=method, path=path).observe(time.perf_counter() - started)
+        REQUEST_LATENCY.labels(method=method, path=path).observe(
+            time.perf_counter() - started
+        )
         raise
 
-    REQUEST_COUNT.labels(method=method, path=path, status_code=str(response.status_code)).inc()
-    REQUEST_LATENCY.labels(method=method, path=path).observe(time.perf_counter() - started)
+    REQUEST_COUNT.labels(
+        method=method, path=path, status_code=str(response.status_code)
+    ).inc()
+    REQUEST_LATENCY.labels(method=method, path=path).observe(
+        time.perf_counter() - started
+    )
     return response
 
 
@@ -139,19 +160,25 @@ def list_simulator_scenarios() -> dict[str, Any]:
 
 @app.post("/simulator/scenarios/power-outage")
 def trigger_power_outage_scenario(payload: PowerOutageRequest) -> dict[str, Any]:
-    scenario = trigger_scenario("power_outage", duration_seconds=payload.duration_seconds)
+    scenario = trigger_scenario(
+        "power_outage", duration_seconds=payload.duration_seconds
+    )
     return serialize_scenario_state(scenario)
 
 
 @app.post("/simulator/scenarios/cooling-degradation")
 def trigger_cooling_degradation_scenario(payload: PowerOutageRequest) -> dict[str, Any]:
-    scenario = trigger_scenario("cooling_degradation", duration_seconds=payload.duration_seconds)
+    scenario = trigger_scenario(
+        "cooling_degradation", duration_seconds=payload.duration_seconds
+    )
     return serialize_scenario_state(scenario)
 
 
 @app.post("/simulator/scenarios/load-transfer")
 def trigger_load_transfer_scenario(payload: PowerOutageRequest) -> dict[str, Any]:
-    scenario = trigger_scenario("load_transfer", duration_seconds=payload.duration_seconds)
+    scenario = trigger_scenario(
+        "load_transfer", duration_seconds=payload.duration_seconds
+    )
     return serialize_scenario_state(scenario)
 
 
@@ -198,7 +225,9 @@ def recent_alerts(limit: int = 50):
         state = get_alert_state(client, row["alert_key"])
         row["acknowledged"] = state["acknowledged"]
         row["muted"] = state["muted"]
-        row["muted_until"] = serialize_timestamp(state["muted_until"]) if state["muted_until"] else None
+        row["muted_until"] = (
+            serialize_timestamp(state["muted_until"]) if state["muted_until"] else None
+        )
         rows.append(row)
     return {"rows": rows}
 
@@ -246,7 +275,9 @@ def acknowledge_alert(alert_key: str, payload: AlertActionRequest):
 @app.post("/alerts/{alert_key}/mute")
 def mute_alert(alert_key: str, payload: AlertMuteRequest):
     client = get_client()
-    muted_until = datetime.now(timezone.utc) + timedelta(minutes=payload.duration_minutes)
+    muted_until = datetime.now(timezone.utc) + timedelta(
+        minutes=payload.duration_minutes
+    )
     action = record_alert_action(
         client,
         alert_key=alert_key,

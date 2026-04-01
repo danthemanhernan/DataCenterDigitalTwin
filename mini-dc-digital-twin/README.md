@@ -92,6 +92,22 @@ uv run --package dc-digital-twin python -m app.alerting --once
 uv run --package dc-digital-twin python -m app.alerting --interval-seconds 30
 ```
 
+10. Acknowledge or mute an alert from the API:
+
+```bash
+curl -X POST http://localhost:8000/alerts/repeated_critical_rack_temp:rack-a01/acknowledge \
+  -H "Content-Type: application/json" \
+  -d '{"actor": "operator", "note": "Investigating in Grafana"}'
+
+curl -X POST http://localhost:8000/alerts/repeated_critical_rack_temp:rack-a01/mute \
+  -H "Content-Type: application/json" \
+  -d '{"actor": "operator", "note": "Suppress during maintenance", "duration_minutes": 60}'
+
+curl -X POST http://localhost:8000/alerts/repeated_critical_rack_temp:rack-a01/unmute \
+  -H "Content-Type: application/json" \
+  -d '{"actor": "operator", "note": "Maintenance complete"}'
+```
+
 ## Default Endpoints
 
 - API: `http://localhost:8000/docs`
@@ -100,6 +116,7 @@ uv run --package dc-digital-twin python -m app.alerting --interval-seconds 30
 - Simulator scenario catalog: `http://localhost:8000/simulator/scenarios`
 - Alert rules: `http://localhost:8000/alerts/rules`
 - Recent alert events: `http://localhost:8000/alerts/recent`
+- Alert state: `http://localhost:8000/alerts/{alert_key}/state`
 - Grafana: `http://localhost:3000`
 - Prometheus: `http://localhost:9090`
 - MQTT broker: `localhost:1883`
@@ -140,3 +157,4 @@ The current rules focus on clear operator signals:
 Operational notes:
 - Normal simulation should stay quiet, so scenario-driven telemetry is the main way to generate alert events.
 - Use `--once` for quick checks and continuous mode for dashboard-driven demos.
+- Acknowledgment records operator intent and is meant for workflow/UI state, while mute actively suppresses new alert events for that `alert_key` until the mute expires or is cleared.

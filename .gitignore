@@ -136,6 +136,8 @@ ENV/
 env.bak/
 venv.bak/
 mini-dc-digital-twin/runtime/
+mini-dc-digital-twin/frontend/node_modules/
+mini-dc-digital-twin/frontend/dist/
 
 # Spyder project settings
 .spyderproject

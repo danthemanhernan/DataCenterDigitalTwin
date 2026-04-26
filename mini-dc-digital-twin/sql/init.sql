@@ -47,7 +47,8 @@ CREATE TABLE IF NOT EXISTS dc_twin.alert_actions
     action LowCardinality(String),
     actor String,
     note String,
-    muted_until Nullable(DateTime64(3, 'UTC'))
+    muted_until Nullable(DateTime64(3, 'UTC')),
+    shelved_until Nullable(DateTime64(3, 'UTC'))
 )
 ENGINE = MergeTree
 ORDER BY (alert_key, ts);

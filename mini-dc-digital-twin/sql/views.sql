@@ -56,5 +56,6 @@ SELECT
     action,
     actor,
     note,
-    muted_until
+    muted_until,
+    shelved_until
 FROM dc_twin.alert_actions;

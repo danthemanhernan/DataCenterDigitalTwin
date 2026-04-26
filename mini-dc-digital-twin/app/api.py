@@ -6,6 +6,7 @@ from typing import Any
 import clickhouse_connect
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import (
     CONTENT_TYPE_LATEST,
     Counter,
@@ -35,8 +36,23 @@ CLICKHOUSE_PORT = int(os.getenv("CLICKHOUSE_PORT", "8123"))
 CLICKHOUSE_USER = os.getenv("CLICKHOUSE_USER", "default")
 CLICKHOUSE_PASSWORD = os.getenv("CLICKHOUSE_PASSWORD", "")
 CLICKHOUSE_DATABASE = os.getenv("CLICKHOUSE_DATABASE", "dc_twin")
+FRONTEND_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv(
+        "FRONTEND_ORIGINS",
+        "http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173",
+    ).split(",")
+    if origin.strip()
+]
 
 app = FastAPI(title="Mini DC Digital Twin API", version="0.1.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=FRONTEND_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 REQUEST_COUNT = Counter(
     "dc_api_requests_total",
@@ -76,6 +92,10 @@ class AlertMuteRequest(AlertActionRequest):
     duration_minutes: int = Field(default=30, ge=1, le=1440)
 
 
+class AlertShelveRequest(AlertActionRequest):
+    duration_minutes: int = Field(default=120, ge=1, le=10080)
+
+
 def serialize_scenario_state(scenario: dict[str, Any] | None) -> dict[str, Any]:
     if not scenario:
         return {"active": False, "scenario": None}
@@ -91,13 +111,93 @@ def serialize_scenario_state(scenario: dict[str, Any] | None) -> dict[str, Any]:
 
 def serialize_alert_state(alert_state: dict[str, Any]) -> dict[str, Any]:
     muted_until = alert_state.get("muted_until")
+    shelved_until = alert_state.get("shelved_until")
     return {
         "alert_key": alert_state["alert_key"],
         "acknowledged": alert_state["acknowledged"],
         "muted": alert_state["muted"],
         "muted_until": serialize_timestamp(muted_until) if muted_until else None,
+        "shelved": alert_state["shelved"],
+        "shelved_until": serialize_timestamp(shelved_until) if shelved_until else None,
         "last_action": alert_state["last_action"],
     }
+
+
+def get_latest_telemetry_by_pair(
+    client: Any, pairs: set[tuple[str, str]]
+) -> dict[tuple[str, str], dict[str, Any]]:
+    if not pairs:
+        return {}
+
+    result = client.query(
+        """
+        SELECT
+            asset_id,
+            metric,
+            max(ts) AS latest_ts,
+            argMax(value, ts) AS value,
+            argMax(unit, ts) AS unit,
+            argMax(status, ts) AS status
+        FROM telemetry_raw
+        WHERE
+            ts >= now() - INTERVAL 15 MINUTE
+        GROUP BY asset_id, metric
+        """
+    )
+    return {
+        (row["asset_id"], row["metric"]): {
+            **row,
+            "ts": row["latest_ts"],
+        }
+        for row in result.named_results()
+        if (row["asset_id"], row["metric"]) in pairs
+    }
+
+
+def get_alert_lifecycle_by_key(
+    client: Any, alert_keys: set[str]
+) -> dict[str, dict[str, Any]]:
+    if not alert_keys:
+        return {}
+
+    result = client.query(
+        """
+        SELECT
+            alert_key,
+            min(ts) AS start_ts,
+            max(ts) AS last_event_ts
+        FROM dc_twin.alert_events
+        GROUP BY alert_key
+        """
+    )
+    return {
+        row["alert_key"]: row
+        for row in result.named_results()
+        if row["alert_key"] in alert_keys
+    }
+
+
+def get_latest_acknowledgement(client: Any, alert_key: str) -> dict[str, Any] | None:
+    result = client.query(
+        """
+        SELECT ts, actor, note
+        FROM dc_twin.alert_actions
+        WHERE
+            alert_key = %(alert_key)s
+            AND action = 'acknowledge'
+        ORDER BY ts DESC
+        LIMIT 1
+        """,
+        parameters={"alert_key": alert_key},
+    )
+    rows = list(result.named_results())
+    return rows[0] if rows else None
+
+
+def seconds_between(start: Any, end: Any) -> int | None:
+    if not start or not end:
+        return None
+    return max(int((end - start).total_seconds()), 0)
 
 
 def get_client():
@@ -194,7 +294,7 @@ def active_alarms(limit: int = 25):
         """,
         parameters={"limit": limit},
     )
-    return {"rows": result.named_results()}
+    return {"rows": list(result.named_results())}
 
 
 @app.get("/alerts/recent")
@@ -220,16 +320,58 @@ def recent_alerts(limit: int = 50):
         """,
         parameters={"limit": limit},
     )
-    rows = []
-    for row in result.named_results():
+    rows = list(result.named_results())
+    latest_telemetry = get_latest_telemetry_by_pair(
+        client, {(row["asset_id"], row["metric"]) for row in rows}
+    )
+    lifecycle_by_key = get_alert_lifecycle_by_key(
+        client, {row["alert_key"] for row in rows}
+    )
+    now_row = next(client.query("SELECT now64(3) AS ts").named_results())
+    current_ts = now_row["ts"]
+    enriched_rows = []
+    for row in rows:
         state = get_alert_state(client, row["alert_key"])
+        live_point = latest_telemetry.get((row["asset_id"], row["metric"]))
+        lifecycle = lifecycle_by_key.get(row["alert_key"], {})
+        start_ts = lifecycle.get("start_ts") or row["ts"]
+        active_condition = bool(
+            live_point and live_point["status"] in {"warning", "critical"}
+        )
+        end_ts = None if active_condition else live_point["ts"] if live_point else lifecycle.get("last_event_ts")
+        ack = get_latest_acknowledgement(client, row["alert_key"])
         row["acknowledged"] = state["acknowledged"]
         row["muted"] = state["muted"]
         row["muted_until"] = (
             serialize_timestamp(state["muted_until"]) if state["muted_until"] else None
         )
-        rows.append(row)
-    return {"rows": rows}
+        row["shelved"] = state["shelved"]
+        row["shelved_until"] = (
+            serialize_timestamp(state["shelved_until"])
+            if state["shelved_until"]
+            else None
+        )
+        row["active_condition"] = active_condition
+        row["condition_status"] = live_point["status"] if live_point else "unknown"
+        row["latest_value"] = live_point["value"] if live_point else None
+        row["latest_unit"] = live_point["unit"] if live_point else None
+        row["latest_ts"] = (
+            serialize_timestamp(live_point["ts"]) if live_point else None
+        )
+        row["start_ts"] = serialize_timestamp(start_ts)
+        row["end_ts"] = serialize_timestamp(end_ts) if end_ts else None
+        row["duration_seconds"] = seconds_between(start_ts, end_ts or current_ts)
+        row["acknowledgement"] = (
+            {
+                "ts": serialize_timestamp(ack["ts"]),
+                "actor": ack["actor"],
+                "note": ack["note"],
+            }
+            if ack
+            else None
+        )
+        enriched_rows.append(row)
+    return {"rows": enriched_rows}
 
 
 @app.get("/alerts/rules")
@@ -267,6 +409,7 @@ def acknowledge_alert(alert_key: str, payload: AlertActionRequest):
             **action,
             "ts": serialize_timestamp(action["ts"]),
             "muted_until": None,
+            "shelved_until": None,
         },
         "state": serialize_alert_state(get_alert_state(client, alert_key)),
     }
@@ -291,6 +434,7 @@ def mute_alert(alert_key: str, payload: AlertMuteRequest):
             **action,
             "ts": serialize_timestamp(action["ts"]),
             "muted_until": serialize_timestamp(muted_until),
+            "shelved_until": None,
         },
         "state": serialize_alert_state(get_alert_state(client, alert_key)),
     }
@@ -312,6 +456,54 @@ def unmute_alert(alert_key: str, payload: AlertActionRequest):
             **action,
             "ts": serialize_timestamp(action["ts"]),
             "muted_until": None,
+            "shelved_until": None,
+        },
+        "state": serialize_alert_state(get_alert_state(client, alert_key)),
+    }
+
+
+@app.post("/alerts/{alert_key}/shelve")
+def shelve_alert(alert_key: str, payload: AlertShelveRequest):
+    client = get_client()
+    shelved_until = datetime.now(timezone.utc) + timedelta(
+        minutes=payload.duration_minutes
+    )
+    action = record_alert_action(
+        client,
+        alert_key=alert_key,
+        action="shelve",
+        actor=payload.actor,
+        note=payload.note,
+        shelved_until=shelved_until,
+    )
+    return {
+        "action": {
+            **action,
+            "ts": serialize_timestamp(action["ts"]),
+            "muted_until": None,
+            "shelved_until": serialize_timestamp(shelved_until),
+        },
+        "state": serialize_alert_state(get_alert_state(client, alert_key)),
+    }
+
+
+@app.post("/alerts/{alert_key}/unshelve")
+def unshelve_alert(alert_key: str, payload: AlertActionRequest):
+    client = get_client()
+    action = record_alert_action(
+        client,
+        alert_key=alert_key,
+        action="unshelve",
+        actor=payload.actor,
+        note=payload.note,
+        shelved_until=None,
+    )
+    return {
+        "action": {
+            **action,
+            "ts": serialize_timestamp(action["ts"]),
+            "muted_until": None,
+            "shelved_until": None,
         },
         "state": serialize_alert_state(get_alert_state(client, alert_key)),
     }
@@ -329,7 +521,7 @@ def recent_telemetry(limit: int = 50):
         """,
         parameters={"limit": limit},
     )
-    return {"rows": result.named_results()}
+    return {"rows": list(result.named_results())}
 
 
 @app.get("/summary")
@@ -353,6 +545,6 @@ def summary():
         """
     )
     return {
-        "alarm_counts_15m": alarms.named_results(),
-        "asset_inventory": assets.named_results(),
+        "alarm_counts_15m": list(alarms.named_results()),
+        "asset_inventory": list(assets.named_results()),
     }

@@ -27,37 +27,46 @@ The simulated topology assumes a simple 2N redundant layout with two representat
 ## Quick Start
 
 1. Copy `.env.example` to `.env` and configure the variables as needed.
-2. Start infrastructure (Docker Compose will automatically load variables from `.env`):
+2. Copy `frontend/.env.example` to `frontend/.env` if you want to override the default API or Grafana URLs used by the React console.
+3. Start infrastructure (Docker Compose will automatically load variables from `.env`):
 
 ```bash
 docker compose up -d
 ```
 
-3. Sync the Python environment with `uv` from the workspace root:
+4. Sync the Python environment with `uv` from the workspace root:
 
 ```bash
 uv sync
 ```
 
-4. Run the ingest service:
+5. Run the ingest service:
 
 ```bash
 uv run --package dc-digital-twin python -m app.ingest
 ```
 
-5. In another terminal, start the API:
+6. In another terminal, start the API:
 
 ```bash
 uv run --package dc-digital-twin uvicorn app.api:app --reload --host 0.0.0.0 --port 8000
 ```
 
-6. In another terminal, start the simulator:
+7. In another terminal, start the simulator:
 
 ```bash
 uv run --package dc-digital-twin python -m app.simulator
 ```
 
-7. Generate a bit of API traffic so the monitoring dashboard has data:
+8. In another terminal, start the React operator console:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+9. Generate a bit of API traffic so the monitoring dashboard has data:
 
 ```bash
 curl http://localhost:8000/health
@@ -65,7 +74,7 @@ curl http://localhost:8000/summary
 curl "http://localhost:8000/telemetry/recent?limit=10"
 ```
 
-8. Trigger a temporary simulator scenario from the API:
+10. Trigger a temporary simulator scenario from the API:
 
 ```bash
 curl -X POST http://localhost:8000/simulator/scenarios/power-outage \
@@ -85,14 +94,14 @@ curl -X POST http://localhost:8000/simulator/scenarios/load-transfer \
   -d '{"duration_seconds": 45}'
 ```
 
-9. Run the Python alerting pipeline:
+11. Run the Python alerting pipeline:
 
 ```bash
 uv run --package dc-digital-twin python -m app.alerting --once
 uv run --package dc-digital-twin python -m app.alerting --interval-seconds 30
 ```
 
-10. Acknowledge or mute an alert from the API:
+12. Take alarm actions from the API:
 
 ```bash
 curl -X POST http://localhost:8000/alerts/repeated_critical_rack_temp:rack-a01/acknowledge \
@@ -106,6 +115,14 @@ curl -X POST http://localhost:8000/alerts/repeated_critical_rack_temp:rack-a01/m
 curl -X POST http://localhost:8000/alerts/repeated_critical_rack_temp:rack-a01/unmute \
   -H "Content-Type: application/json" \
   -d '{"actor": "operator", "note": "Maintenance complete"}'
+
+curl -X POST http://localhost:8000/alerts/repeated_critical_rack_temp:rack-a01/shelve \
+  -H "Content-Type: application/json" \
+  -d '{"actor": "operator", "note": "Shelve during planned change", "duration_minutes": 120}'
+
+curl -X POST http://localhost:8000/alerts/repeated_critical_rack_temp:rack-a01/unshelve \
+  -H "Content-Type: application/json" \
+  -d '{"actor": "operator", "note": "Return to active monitoring"}'
 ```
 
 ## Default Endpoints
@@ -117,6 +134,7 @@ curl -X POST http://localhost:8000/alerts/repeated_critical_rack_temp:rack-a01/u
 - Alert rules: `http://localhost:8000/alerts/rules`
 - Recent alert events: `http://localhost:8000/alerts/recent`
 - Alert state: `http://localhost:8000/alerts/{alert_key}/state`
+- React console: `http://localhost:5173`
 - Grafana: `http://localhost:3000`
 - Prometheus: `http://localhost:9090`
 - MQTT broker: `localhost:1883`
@@ -136,6 +154,7 @@ curl -X POST http://localhost:8000/alerts/repeated_critical_rack_temp:rack-a01/u
 - Telemetry trend panels split one query into separate asset series with Grafana transforms, and they use peak-oriented aggregation (`max`, or `min` for UPS battery) to make alarm excursions easier to spot.
 - Scenario profiles now progress through staged behavior over their duration instead of jumping directly to a single failure snapshot, making transfer events, recovery ramps, and compensating equipment behavior easier to observe.
 - Default Grafana login comes from `.env`, and the provisioned home dashboard is `Mini DC Operations Overview`.
+- Grafana runs with anonymous viewer access and `allow_embedding` enabled so the React console can embed the most critical panels directly in the operator workflow.
 - FastAPI exposes Prometheus-style metrics at `/metrics`, and Prometheus scrapes the API from `host.docker.internal:8000` for the API monitoring dashboard.
 - The simulator checks a local control file each publish loop, so calling a scenario endpoint shifts telemetry into a named failure or maintenance profile for the requested duration.
 
@@ -157,4 +176,23 @@ The current rules focus on clear operator signals:
 Operational notes:
 - Normal simulation should stay quiet, so scenario-driven telemetry is the main way to generate alert events.
 - Use `--once` for quick checks and continuous mode for dashboard-driven demos.
-- Acknowledgment records operator intent and is meant for workflow/UI state, while mute actively suppresses new alert events for that `alert_key` until the mute expires or is cleared.
+- Acknowledgment records operator intent for the current alert generation. Once a condition has been acknowledged, the next recurrence can emit a fresh alert event instead of being permanently treated as the same open incident.
+- Mute actively suppresses new alert events for that `alert_key` until the mute expires or is cleared.
+- Shelving behaves like a longer-lived operator suppression state and is intended for maintenance windows or known work where the alert should remain visible in history but stay out of the live signal path.
+
+## React Operations Frontend
+
+The React console lives in `frontend/` and complements Grafana rather than replacing it.
+
+Choice justification:
+- React plus Vite keeps the first frontend iteration lightweight and local-development friendly without introducing a large UI framework stack.
+- The console embeds a few high-value Grafana panels instead of rebuilding every chart from scratch, which keeps the work focused on operator workflow, alarm handling, and scenario control.
+- FastAPI remains the source of truth for scenario commands and alert actions, so the frontend stays thin and interactive while the backend owns state transitions.
+- Shelving was added to the alert model because the frontend needs a practical suppression action that is distinct from acknowledgment and more durable than a short mute.
+
+Design notes:
+- The visual direction is dark-forward, minimal, and intentionally product-like, with restrained red accents inspired by Tesla’s branding language.
+- The alarm list is filterable by severity, state, and asset search so the operator can quickly narrow focus during a scenario.
+- Alarm actions now require an operator confirmation modal with name and note before the UI will acknowledge, mute, or shelve anything.
+- The console also includes an `Acknowledge all active` action, which uses one operator and note to acknowledge each currently active alarm once, deduped by `alert_key`.
+- Embedded Grafana panels use `d-solo` URLs against provisioned dashboards, so the console benefits from the existing observability work instead of duplicating it.

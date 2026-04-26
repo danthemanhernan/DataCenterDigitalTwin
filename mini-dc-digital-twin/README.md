@@ -28,37 +28,22 @@ The simulated topology assumes a simple 2N redundant layout with two representat
 
 1. Copy `.env.example` to `.env` and configure the variables as needed.
 2. Copy `frontend/.env.example` to `frontend/.env` if you want to override the default API or Grafana URLs used by the React console.
-3. Start infrastructure (Docker Compose will automatically load variables from `.env`):
+3. Start the containerized backend stack. Docker Compose will build one Python app image and run the API, ingest worker, simulator, and alerting worker alongside MQTT, ClickHouse, Prometheus, and Grafana:
 
 ```bash
-docker compose up -d
+docker compose up -d --build
 ```
 
-4. Sync the Python environment with `uv` from the workspace root:
+The app services map to the scripts that used to run in separate terminals:
 
-```bash
-uv sync
-```
+- `api`: `uvicorn app.api:app --host 0.0.0.0 --port 8000`
+- `ingest`: `python -m app.ingest`
+- `simulator`: `python -m app.simulator`
+- `alerting`: `python -m app.alerting --interval-seconds ${ALERT_INTERVAL_SECONDS:-30}`
 
-5. Run the ingest service:
+The API and simulator share a small Docker volume for `SIMULATOR_CONTROL_PATH`, so scenario calls from the API change the telemetry emitted by the simulator container.
 
-```bash
-uv run --package dc-digital-twin python -m app.ingest
-```
-
-6. In another terminal, start the API:
-
-```bash
-uv run --package dc-digital-twin uvicorn app.api:app --reload --host 0.0.0.0 --port 8000
-```
-
-7. In another terminal, start the simulator:
-
-```bash
-uv run --package dc-digital-twin python -m app.simulator
-```
-
-8. In another terminal, start the React operator console:
+4. Start the React operator console:
 
 ```bash
 cd frontend
@@ -66,7 +51,7 @@ npm install
 npm run dev
 ```
 
-9. Generate a bit of API traffic so the monitoring dashboard has data:
+5. Generate a bit of API traffic so the monitoring dashboard has data:
 
 ```bash
 curl http://localhost:8000/health
@@ -74,7 +59,7 @@ curl http://localhost:8000/summary
 curl "http://localhost:8000/telemetry/recent?limit=10"
 ```
 
-10. Trigger a temporary simulator scenario from the API:
+6. Trigger a temporary simulator scenario from the API:
 
 ```bash
 curl -X POST http://localhost:8000/simulator/scenarios/power-outage \
@@ -94,14 +79,14 @@ curl -X POST http://localhost:8000/simulator/scenarios/load-transfer \
   -d '{"duration_seconds": 45}'
 ```
 
-11. Run the Python alerting pipeline:
+7. Check the running app services:
 
 ```bash
-uv run --package dc-digital-twin python -m app.alerting --once
-uv run --package dc-digital-twin python -m app.alerting --interval-seconds 30
+docker compose ps
+docker compose logs -f api ingest simulator alerting
 ```
 
-12. Take alarm actions from the API:
+8. Take alarm actions from the API:
 
 ```bash
 curl -X POST http://localhost:8000/alerts/repeated_critical_rack_temp:rack-a01/acknowledge \
@@ -123,6 +108,16 @@ curl -X POST http://localhost:8000/alerts/repeated_critical_rack_temp:rack-a01/s
 curl -X POST http://localhost:8000/alerts/repeated_critical_rack_temp:rack-a01/unshelve \
   -H "Content-Type: application/json" \
   -d '{"actor": "operator", "note": "Return to active monitoring"}'
+```
+
+For local Python development outside Docker, sync the workspace and run modules manually from the workspace root:
+
+```bash
+uv sync
+uv run --package dc-digital-twin python -m app.ingest
+uv run --package dc-digital-twin uvicorn app.api:app --reload --host 0.0.0.0 --port 8000
+uv run --package dc-digital-twin python -m app.simulator
+uv run --package dc-digital-twin python -m app.alerting --interval-seconds 30
 ```
 
 ## Default Endpoints
@@ -155,7 +150,7 @@ curl -X POST http://localhost:8000/alerts/repeated_critical_rack_temp:rack-a01/u
 - Scenario profiles now progress through staged behavior over their duration instead of jumping directly to a single failure snapshot, making transfer events, recovery ramps, and compensating equipment behavior easier to observe.
 - Default Grafana login comes from `.env`, and the provisioned home dashboard is `Mini DC Operations Overview`.
 - Grafana runs with anonymous viewer access and `allow_embedding` enabled so the React console can embed the most critical panels directly in the operator workflow.
-- FastAPI exposes Prometheus-style metrics at `/metrics`, and Prometheus scrapes the API from `host.docker.internal:8000` for the API monitoring dashboard.
+- FastAPI exposes Prometheus-style metrics at `/metrics`, and Prometheus scrapes the containerized API from `api:8000` for the API monitoring dashboard.
 - The simulator checks a local control file each publish loop, so calling a scenario endpoint shifts telemetry into a named failure or maintenance profile for the requested duration.
 
 ## Alerting Pipeline

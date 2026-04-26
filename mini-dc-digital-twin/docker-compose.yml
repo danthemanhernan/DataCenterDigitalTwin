@@ -2,6 +2,7 @@ services:
   mqtt:
     image: eclipse-mosquitto:2
     container_name: mini-dc-mqtt
+    restart: unless-stopped
     ports:
       - "${MQTT_PORT}:1883"
     volumes:
@@ -10,6 +11,7 @@ services:
   clickhouse:
     image: clickhouse/clickhouse-server:24.8
     container_name: mini-dc-clickhouse
+    restart: unless-stopped
     ports:
       - "8123:8123"
       - "9000:9000"
@@ -26,21 +28,92 @@ services:
       - ./sql/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
       - ./sql/views.sql:/docker-entrypoint-initdb.d/02-views.sql:ro
 
+  api:
+    build:
+      context: .
+    image: mini-dc-app:latest
+    container_name: mini-dc-api
+    restart: unless-stopped
+    command: uvicorn app.api:app --host 0.0.0.0 --port 8000
+    ports:
+      - "${API_PORT}:8000"
+    environment: &app_environment
+      MQTT_HOST: mqtt
+      MQTT_PORT: 1883
+      MQTT_TOPIC_ROOT: ${MQTT_TOPIC_ROOT}
+      CLICKHOUSE_HOST: clickhouse
+      CLICKHOUSE_PORT: 8123
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_DATABASE: ${CLICKHOUSE_DATABASE}
+      SITE_NAME: ${SITE_NAME}
+      FRONTEND_ORIGINS: ${FRONTEND_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173}
+      SIMULATOR_CONTROL_PATH: /runtime/simulator-control.json
+    volumes:
+      - simulator_runtime:/runtime
+    depends_on:
+      - clickhouse
+      - mqtt
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"
+      interval: 10s
+      timeout: 3s
+      retries: 12
+
+  ingest:
+    image: mini-dc-app:latest
+    container_name: mini-dc-ingest
+    restart: unless-stopped
+    command: python -m app.ingest
+    environment: *app_environment
+    depends_on:
+      - api
+      - clickhouse
+      - mqtt
+
+  simulator:
+    image: mini-dc-app:latest
+    container_name: mini-dc-simulator
+    restart: unless-stopped
+    command: python -m app.simulator
+    environment:
+      <<: *app_environment
+      SIM_INTERVAL_SECONDS: ${SIM_INTERVAL_SECONDS:-2.0}
+    volumes:
+      - simulator_runtime:/runtime
+    depends_on:
+      - api
+      - mqtt
+
+  alerting:
+    image: mini-dc-app:latest
+    container_name: mini-dc-alerting
+    restart: unless-stopped
+    command: python -m app.alerting --interval-seconds ${ALERT_INTERVAL_SECONDS:-30}
+    environment: *app_environment
+    depends_on:
+      - api
+      - clickhouse
+
   prometheus:
     image: prom/prometheus:v2.54.1
     container_name: mini-dc-prometheus
+    restart: unless-stopped
     ports:
       - "9090:9090"
     command:
       - --config.file=/etc/prometheus/prometheus.yml
     volumes:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    depends_on:
+      - api
 
   grafana:
     image: grafana/grafana-oss:latest
     container_name: mini-dc-grafana
+    restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
@@ -62,3 +135,4 @@ services:
 volumes:
   clickhouse_data:
   grafana_data:
+  simulator_runtime:

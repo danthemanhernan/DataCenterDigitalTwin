@@ -1,0 +1,42 @@
+{
+  "hvac_fan_speed_pct": {
+    "mean": 58.92485549132948,
+    "stddev": 8.757756651690281,
+    "samples": 1038.0
+  },
+  "hvac_return_temp_c": {
+    "mean": 28.973506743737957,
+    "stddev": 1.3932131387561253,
+    "samples": 1038.0
+  },
+  "hvac_supply_temp_c": {
+    "mean": 18.67533718689788,
+    "stddev": 1.1237716456884865,
+    "samples": 1038.0
+  },
+  "pdu_branch_load_pct": {
+    "mean": 45.213872832369944,
+    "stddev": 8.274376350143424,
+    "samples": 1038.0
+  },
+  "ups_battery_pct": {
+    "mean": 98.00770712909441,
+    "stddev": 1.4203162695885385,
+    "samples": 1038.0
+  },
+  "ups_load_pct": {
+    "mean": 53.3121387283237,
+    "stddev": 8.56406269071602,
+    "samples": 1038.0
+  },
+  "rack_kw": {
+    "mean": 4.9367052023121385,
+    "stddev": 0.6498063889323551,
+    "samples": 1038.0
+  },
+  "rack_temp_c": {
+    "mean": 25.225915221579964,
+    "stddev": 1.1415670769034614,
+    "samples": 1038.0
+  }
+}

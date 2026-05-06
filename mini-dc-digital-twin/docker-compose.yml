@@ -62,6 +62,21 @@ services:
       timeout: 3s
       retries: 12
 
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+        VITE_GRAFANA_BASE_URL: ${VITE_GRAFANA_BASE_URL:-http://localhost:3000}
+    image: mini-dc-frontend:latest
+    container_name: mini-dc-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"
+    depends_on:
+      - api
+      - grafana
+
   ingest:
     image: mini-dc-app:latest
     container_name: mini-dc-ingest

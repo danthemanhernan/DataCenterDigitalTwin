@@ -16,6 +16,8 @@ The simulated topology assumes a simple 2N redundant layout with two representat
 - ClickHouse
 - Grafana
 - Prometheus
+- React / Vite
+- nginx
 
 ## Project Flow
 
@@ -23,12 +25,13 @@ The simulated topology assumes a simple 2N redundant layout with two representat
 2. `app/ingest.py` subscribes to those topics, normalizes the payload, derives health signals and alarm state, and inserts records into ClickHouse.
 3. `app/api.py` reads recent telemetry and active alarms from ClickHouse through FastAPI.
 4. Grafana queries ClickHouse to show trends, alarm counts, and recent events.
+5. The React operator console is built with Vite and served from nginx.
 
 ## Quick Start
 
 1. Copy `.env.example` to `.env` and configure the variables as needed.
-2. Copy `frontend/.env.example` to `frontend/.env` if you want to override the default API or Grafana URLs used by the React console.
-3. Start the containerized backend stack. Docker Compose will build one Python app image and run the API, ingest worker, simulator, and alerting worker alongside MQTT, ClickHouse, Prometheus, and Grafana:
+2. Adjust `FRONTEND_PORT`, `VITE_API_BASE_URL`, or `VITE_GRAFANA_BASE_URL` in `.env` if you want different browser-facing URLs for the React console.
+3. Start the containerized stack. Docker Compose will build one Python app image for the API, ingest worker, simulator, and alerting worker, plus a frontend image that builds the React app and serves it from nginx. MQTT, ClickHouse, Prometheus, and Grafana run alongside them:
 
 ```bash
 docker compose up -d --build
@@ -40,18 +43,11 @@ The app services map to the scripts that used to run in separate terminals:
 - `ingest`: `python -m app.ingest`
 - `simulator`: `python -m app.simulator`
 - `alerting`: `python -m app.alerting --interval-seconds ${ALERT_INTERVAL_SECONDS:-30}`
+- `frontend`: Vite production build served by nginx on `${FRONTEND_PORT:-5173}`
 
 The API and simulator share a small Docker volume for `SIMULATOR_CONTROL_PATH`, so scenario calls from the API change the telemetry emitted by the simulator container.
 
-4. Start the React operator console:
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-5. Generate a bit of API traffic so the monitoring dashboard has data:
+4. Generate a bit of API traffic so the monitoring dashboard has data:
 
 ```bash
 curl http://localhost:8000/health
@@ -59,7 +55,7 @@ curl http://localhost:8000/summary
 curl "http://localhost:8000/telemetry/recent?limit=10"
 ```
 
-6. Trigger a temporary simulator scenario from the API:
+5. Trigger a temporary simulator scenario from the API:
 
 ```bash
 curl -X POST http://localhost:8000/simulator/scenarios/power-outage \
@@ -79,11 +75,19 @@ curl -X POST http://localhost:8000/simulator/scenarios/load-transfer \
   -d '{"duration_seconds": 45}'
 ```
 
-7. Check the running app services:
+6. Check the running app services:
 
 ```bash
 docker compose ps
-docker compose logs -f api ingest simulator alerting
+docker compose logs -f api ingest simulator alerting frontend
+```
+
+7. For local frontend development outside Docker, run the Vite dev server from `frontend/`:
+
+```bash
+cd frontend
+npm install
+npm run dev
 ```
 
 8. Take alarm actions from the API:
@@ -129,7 +133,7 @@ uv run --package dc-digital-twin python -m app.alerting --interval-seconds 30
 - Alert rules: `http://localhost:8000/alerts/rules`
 - Recent alert events: `http://localhost:8000/alerts/recent`
 - Alert state: `http://localhost:8000/alerts/{alert_key}/state`
-- React console: `http://localhost:5173`
+- React console: `http://localhost:5173` by default, or `http://localhost:${FRONTEND_PORT}`
 - Grafana: `http://localhost:3000`
 - Prometheus: `http://localhost:9090`
 - MQTT broker: `localhost:1883`
@@ -152,6 +156,7 @@ uv run --package dc-digital-twin python -m app.alerting --interval-seconds 30
 - Grafana runs with anonymous viewer access and `allow_embedding` enabled so the React console can embed the most critical panels directly in the operator workflow.
 - FastAPI exposes Prometheus-style metrics at `/metrics`, and Prometheus scrapes the containerized API from `api:8000` for the API monitoring dashboard.
 - The simulator checks a local control file each publish loop, so calling a scenario endpoint shifts telemetry into a named failure or maintenance profile for the requested duration.
+- Docker Compose builds the frontend as a static Vite bundle and serves it from nginx. Because Vite embeds `VITE_*` values at build time, rebuild the frontend image after changing `VITE_API_BASE_URL` or `VITE_GRAFANA_BASE_URL`.
 
 ## Alerting Pipeline
 

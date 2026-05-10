@@ -1,11 +1,10 @@
 import argparse
-import json
 import math
 import os
+import time
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from statistics import mean, stdev
 from typing import Any
 
@@ -23,7 +22,11 @@ CLICKHOUSE_PORT = int(os.getenv("CLICKHOUSE_PORT", "8123"))
 CLICKHOUSE_USER = os.getenv("CLICKHOUSE_USER", "default")
 CLICKHOUSE_PASSWORD = os.getenv("CLICKHOUSE_PASSWORD", "")
 CLICKHOUSE_DATABASE = os.getenv("CLICKHOUSE_DATABASE", "dc_twin")
-DEFAULT_ARTIFACT_DIR = Path(__file__).resolve().parents[1] / "ml" / "artifacts"
+MODEL_VERSION = "metric_mean_std_v1"
+DEFAULT_INTERVAL_SECONDS = int(os.getenv("MAINTENANCE_MODEL_INTERVAL_SECONDS", "300"))
+DEFAULT_LOOKBACK_HOURS = int(os.getenv("MAINTENANCE_MODEL_LOOKBACK_HOURS", "24"))
+DEFAULT_WINDOW_MINUTES = int(os.getenv("MAINTENANCE_MODEL_WINDOW_MINUTES", "30"))
+DEFAULT_ROW_LIMIT = int(os.getenv("MAINTENANCE_MODEL_ROW_LIMIT", "100000"))
 
 INVERSE_METRICS = {"ups_battery_pct"}
 MAINTENANCE_METRICS = {
@@ -36,6 +39,40 @@ MAINTENANCE_METRICS = {
     "ups_battery_pct",
     "pdu_branch_load_pct",
 }
+
+MAINTENANCE_TABLE_DDL = """
+CREATE TABLE IF NOT EXISTS dc_twin.maintenance_risk_scores
+(
+    ts DateTime64(3, 'UTC'),
+    model_version LowCardinality(String),
+    source LowCardinality(String),
+    lookback_hours UInt16,
+    window_minutes UInt16,
+    telemetry_rows UInt32,
+    site LowCardinality(String),
+    zone LowCardinality(String),
+    asset_type LowCardinality(String),
+    asset_id String,
+    metric LowCardinality(String),
+    sample_count UInt32,
+    avg_value Float64,
+    min_value Float64,
+    max_value Float64,
+    latest_value Float64,
+    slope_per_hour Float64,
+    warning_or_critical_ratio Float64,
+    critical_ratio Float64,
+    baseline_mean Float64,
+    baseline_stddev Float64,
+    baseline_samples UInt32,
+    anomaly_zscore Float64,
+    trend_component Float64,
+    maintenance_risk_score Float64,
+    risk_band LowCardinality(String)
+)
+ENGINE = MergeTree
+ORDER BY (asset_type, asset_id, metric, ts);
+"""
 
 
 @dataclass(frozen=True)
@@ -76,8 +113,12 @@ def get_client() -> Any:
     )
 
 
-def fetch_telemetry(hours: int, limit: int) -> list[TelemetryPoint]:
-    client = get_client()
+def ensure_maintenance_schema(client: Any) -> None:
+    client.command("CREATE DATABASE IF NOT EXISTS dc_twin")
+    client.command(MAINTENANCE_TABLE_DDL)
+
+
+def fetch_telemetry(client: Any, hours: int, limit: int) -> list[TelemetryPoint]:
     safe_hours = max(1, min(hours, 24 * 30))
     safe_limit = max(1, min(limit, 1_000_000))
     result = client.query(
@@ -204,6 +245,8 @@ def build_training_dataset(points: list[TelemetryPoint], window_minutes: int) ->
                 "asset_type": asset_type,
                 "asset_id": asset_id,
                 "metric": metric,
+                "site": rows[-1].site,
+                "zone": rows[-1].zone,
                 "sample_count": len(rows),
                 "avg_value": mean(values),
                 "min_value": min(values),
@@ -227,6 +270,7 @@ def score_dataset(
         zscore = metric_zscore(metric, latest_value, model)
         trend = -row["slope_per_hour"] if metric in INVERSE_METRICS else row["slope_per_hour"]
         trend_component = clamp(max(trend, 0) * 0.15, 0, 10)
+        baseline = model.get(metric, {})
         risk_score = (
             max(zscore, 0) * 18
             + row["warning_or_critical_ratio"] * 35
@@ -238,6 +282,9 @@ def score_dataset(
         scored.append(
             {
                 **row,
+                "baseline_mean": baseline.get("mean", 0.0),
+                "baseline_stddev": baseline.get("stddev", 0.0),
+                "baseline_samples": int(baseline.get("samples", 0)),
                 "anomaly_zscore": round(zscore, 3),
                 "trend_component": round(trend_component, 1),
                 "maintenance_risk_score": round(clamp(risk_score, 0, 100), 1),
@@ -255,52 +302,132 @@ def risk_band(score: float) -> str:
     return "low"
 
 
-def write_json(path: Path, payload: Any) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, default=str) + "\n")
+def insert_scores(
+    client: Any,
+    scored_rows: list[dict[str, Any]],
+    generated_at: datetime,
+    source: str,
+    lookback_hours: int,
+    window_minutes: int,
+    telemetry_rows: int,
+) -> None:
+    if not scored_rows:
+        return
+
+    client.insert(
+        table="maintenance_risk_scores",
+        data=[
+            [
+                generated_at,
+                MODEL_VERSION,
+                source,
+                lookback_hours,
+                window_minutes,
+                telemetry_rows,
+                row["site"],
+                row["zone"],
+                row["asset_type"],
+                row["asset_id"],
+                row["metric"],
+                row["sample_count"],
+                row["avg_value"],
+                row["min_value"],
+                row["max_value"],
+                row["latest_value"],
+                row["slope_per_hour"],
+                row["warning_or_critical_ratio"],
+                row["critical_ratio"],
+                row["baseline_mean"],
+                row["baseline_stddev"],
+                row["baseline_samples"],
+                row["anomaly_zscore"],
+                row["trend_component"],
+                row["maintenance_risk_score"],
+                row["risk_band"],
+            ]
+            for row in scored_rows
+        ],
+        column_names=[
+            "ts",
+            "model_version",
+            "source",
+            "lookback_hours",
+            "window_minutes",
+            "telemetry_rows",
+            "site",
+            "zone",
+            "asset_type",
+            "asset_id",
+            "metric",
+            "sample_count",
+            "avg_value",
+            "min_value",
+            "max_value",
+            "latest_value",
+            "slope_per_hour",
+            "warning_or_critical_ratio",
+            "critical_ratio",
+            "baseline_mean",
+            "baseline_stddev",
+            "baseline_samples",
+            "anomaly_zscore",
+            "trend_component",
+            "maintenance_risk_score",
+            "risk_band",
+        ],
+    )
 
 
-def run_experiment(args: argparse.Namespace) -> dict[str, Any]:
-    points = build_fixture_points() if args.fixture else fetch_telemetry(args.hours, args.limit)
+def run_cycle(client: Any, args: argparse.Namespace) -> list[dict[str, Any]]:
+    ensure_maintenance_schema(client)
+    points = (
+        build_fixture_points()
+        if args.fixture
+        else fetch_telemetry(client, args.hours, args.limit)
+    )
     if not points:
-        raise SystemExit(
-            "No telemetry rows found. Start the stack and simulator first, or rerun with --fixture for a local smoke test."
-        )
+        print("Maintenance model cycle skipped: no telemetry rows found")
+        return []
 
     model = train_baseline(points)
     dataset = build_training_dataset(points, args.window_minutes)
-    ranked_assets = score_dataset(dataset, model)
-    report = {
-        "generated_at": utc_now().isoformat(),
-        "source": "fixture" if args.fixture else "clickhouse",
-        "telemetry_rows": len(points),
-        "window_minutes": args.window_minutes,
-        "model_type": "metric_mean_std_anomaly_baseline",
-        "target": "maintenance risk from abnormal telemetry level, persistence, and adverse trend",
-        "top_risks": ranked_assets[: args.top_n],
-    }
-
-    artifact_dir = Path(args.artifact_dir)
-    write_json(artifact_dir / "maintenance_model.json", model)
-    write_json(artifact_dir / "maintenance_dataset.json", dataset)
-    write_json(artifact_dir / "maintenance_report.json", report)
-
-    print(json.dumps(report, indent=2, default=str))
-    return report
+    scored_rows = score_dataset(dataset, model)
+    generated_at = utc_now()
+    insert_scores(
+        client=client,
+        scored_rows=scored_rows,
+        generated_at=generated_at,
+        source="fixture" if args.fixture else "clickhouse",
+        lookback_hours=args.hours,
+        window_minutes=args.window_minutes,
+        telemetry_rows=len(points),
+    )
+    return scored_rows
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Train a lightweight predictive-maintenance baseline from telemetry history."
+        description="Publish cyclic predictive-maintenance scores from telemetry history."
     )
-    parser.add_argument("--hours", type=int, default=24, help="Telemetry lookback window for ClickHouse extraction.")
-    parser.add_argument("--limit", type=int, default=100_000, help="Maximum telemetry rows to extract.")
-    parser.add_argument("--window-minutes", type=int, default=30, help="Recent scoring window.")
-    parser.add_argument("--top-n", type=int, default=10, help="Number of ranked risks to include in the report.")
-    parser.add_argument("--artifact-dir", default=str(DEFAULT_ARTIFACT_DIR), help="Directory for model, dataset, and report JSON artifacts.")
-    parser.add_argument("--fixture", action="store_true", help="Use deterministic sample telemetry for local smoke testing.")
+    parser.add_argument("--once", action="store_true", help="Run one scoring cycle and exit.")
+    parser.add_argument("--interval-seconds", type=int, default=DEFAULT_INTERVAL_SECONDS, help="Polling interval for continuous mode.")
+    parser.add_argument("--hours", type=int, default=DEFAULT_LOOKBACK_HOURS, help="Telemetry lookback window for ClickHouse extraction.")
+    parser.add_argument("--limit", type=int, default=DEFAULT_ROW_LIMIT, help="Maximum telemetry rows to extract.")
+    parser.add_argument("--window-minutes", type=int, default=DEFAULT_WINDOW_MINUTES, help="Recent scoring window.")
+    parser.add_argument("--fixture", action="store_true", help="Use deterministic sample telemetry but still publish scores to ClickHouse.")
     return parser.parse_args()
 
 
 if __name__ == "__main__":
-    run_experiment(parse_args())
+    args = parse_args()
+    client = get_client()
+    print(f"Connecting to ClickHouse http://{CLICKHOUSE_HOST}:{CLICKHOUSE_PORT}")
+
+    if args.once:
+        scores = run_cycle(client, args)
+        print(f"Maintenance model cycle complete: published {len(scores)} score row(s)")
+    else:
+        while True:
+            scores = run_cycle(client, args)
+            print(f"Maintenance model cycle complete: published {len(scores)} score row(s)")
+            time.sleep(args.interval_seconds)

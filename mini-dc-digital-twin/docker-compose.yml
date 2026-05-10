@@ -38,6 +38,34 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
+  maintenance-model:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: mini-dc-app:latest
+    container_name: mini-dc-maintenance-model
+    command:
+      - python
+      - -m
+      - app.maintenance_model
+      - --interval-seconds
+      - ${MAINTENANCE_MODEL_INTERVAL_SECONDS:-300}
+      - --hours
+      - ${MAINTENANCE_MODEL_LOOKBACK_HOURS:-24}
+      - --window-minutes
+      - ${MAINTENANCE_MODEL_WINDOW_MINUTES:-30}
+      - --limit
+      - ${MAINTENANCE_MODEL_ROW_LIMIT:-100000}
+    environment:
+      CLICKHOUSE_HOST: clickhouse
+      CLICKHOUSE_PORT: 8123
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_DATABASE: ${CLICKHOUSE_DATABASE}
+    depends_on:
+      - clickhouse
+    restart: unless-stopped
+
   grafana:
     image: grafana/grafana-oss:latest
     container_name: mini-dc-grafana

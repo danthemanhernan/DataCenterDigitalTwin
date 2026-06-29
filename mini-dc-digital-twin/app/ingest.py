@@ -80,9 +80,7 @@ def on_connect(
     print(f"Subscribed to {topic}")
 
 
-def on_message(
-    client: mqtt.Client, userdata: dict[str, Any], msg: mqtt.MQTTMessage
-) -> None:
+def on_message(client: mqtt.Client, userdata: dict[str, Any], msg: mqtt.MQTTMessage) -> None:
     payload = parse_payload(msg.payload)
     normalized = normalize_message(msg.topic, payload)
     insert_telemetry(userdata["clickhouse"], normalized)

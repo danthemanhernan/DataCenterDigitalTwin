@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v8
+        with:
+          enable-cache: true
+
+      - name: Check lockfile
+        run: uv lock --check
+
+      - name: Install Python dependencies
+        run: uv sync --locked
+
+      - name: Check Python formatting
+        run: uv run --package dc-digital-twin ruff format --check mini-dc-digital-twin/app
+
+      - name: Lint Python
+        run: uv run --package dc-digital-twin ruff check mini-dc-digital-twin/app
+
+      - name: Compile Python modules
+        run: uv run --package dc-digital-twin python -m compileall mini-dc-digital-twin/app
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: mini-dc-digital-twin/frontend
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mini-dc-digital-twin/frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build

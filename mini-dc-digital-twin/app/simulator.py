@@ -42,10 +42,7 @@ def main() -> None:
         points = generator(scenario) if generator else generate_simulated_points()
 
         if scenario:
-            print(
-                "active scenario "
-                f"{scenario['scenario']} until {serialize_timestamp(scenario['expires_at'])}"
-            )
+            print(f"active scenario {scenario['scenario']} until {serialize_timestamp(scenario['expires_at'])}")
 
         for point in points:
             topic = topic_for(point["asset_type"], point["asset_id"], MQTT_TOPIC_ROOT)

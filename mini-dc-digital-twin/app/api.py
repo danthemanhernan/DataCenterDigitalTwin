@@ -1,6 +1,6 @@
 import os
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import clickhouse_connect
@@ -123,9 +123,7 @@ def serialize_alert_state(alert_state: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def get_latest_telemetry_by_pair(
-    client: Any, pairs: set[tuple[str, str]]
-) -> dict[tuple[str, str], dict[str, Any]]:
+def get_latest_telemetry_by_pair(client: Any, pairs: set[tuple[str, str]]) -> dict[tuple[str, str], dict[str, Any]]:
     if not pairs:
         return {}
 
@@ -154,9 +152,7 @@ def get_latest_telemetry_by_pair(
     }
 
 
-def get_alert_lifecycle_by_key(
-    client: Any, alert_keys: set[str]
-) -> dict[str, dict[str, Any]]:
+def get_alert_lifecycle_by_key(client: Any, alert_keys: set[str]) -> dict[str, dict[str, Any]]:
     if not alert_keys:
         return {}
 
@@ -170,11 +166,7 @@ def get_alert_lifecycle_by_key(
         GROUP BY alert_key
         """
     )
-    return {
-        row["alert_key"]: row
-        for row in result.named_results()
-        if row["alert_key"] in alert_keys
-    }
+    return {row["alert_key"]: row for row in result.named_results() if row["alert_key"] in alert_keys}
 
 
 def get_latest_acknowledgement(client: Any, alert_key: str) -> dict[str, Any] | None:
@@ -224,17 +216,11 @@ async def record_metrics(request: Request, call_next):
     except Exception:
         EXCEPTIONS_TOTAL.labels(method=method, path=path).inc()
         REQUEST_COUNT.labels(method=method, path=path, status_code="500").inc()
-        REQUEST_LATENCY.labels(method=method, path=path).observe(
-            time.perf_counter() - started
-        )
+        REQUEST_LATENCY.labels(method=method, path=path).observe(time.perf_counter() - started)
         raise
 
-    REQUEST_COUNT.labels(
-        method=method, path=path, status_code=str(response.status_code)
-    ).inc()
-    REQUEST_LATENCY.labels(method=method, path=path).observe(
-        time.perf_counter() - started
-    )
+    REQUEST_COUNT.labels(method=method, path=path, status_code=str(response.status_code)).inc()
+    REQUEST_LATENCY.labels(method=method, path=path).observe(time.perf_counter() - started)
     return response
 
 
@@ -260,25 +246,19 @@ def list_simulator_scenarios() -> dict[str, Any]:
 
 @app.post("/simulator/scenarios/power-outage")
 def trigger_power_outage_scenario(payload: PowerOutageRequest) -> dict[str, Any]:
-    scenario = trigger_scenario(
-        "power_outage", duration_seconds=payload.duration_seconds
-    )
+    scenario = trigger_scenario("power_outage", duration_seconds=payload.duration_seconds)
     return serialize_scenario_state(scenario)
 
 
 @app.post("/simulator/scenarios/cooling-degradation")
 def trigger_cooling_degradation_scenario(payload: PowerOutageRequest) -> dict[str, Any]:
-    scenario = trigger_scenario(
-        "cooling_degradation", duration_seconds=payload.duration_seconds
-    )
+    scenario = trigger_scenario("cooling_degradation", duration_seconds=payload.duration_seconds)
     return serialize_scenario_state(scenario)
 
 
 @app.post("/simulator/scenarios/load-transfer")
 def trigger_load_transfer_scenario(payload: PowerOutageRequest) -> dict[str, Any]:
-    scenario = trigger_scenario(
-        "load_transfer", duration_seconds=payload.duration_seconds
-    )
+    scenario = trigger_scenario("load_transfer", duration_seconds=payload.duration_seconds)
     return serialize_scenario_state(scenario)
 
 
@@ -321,12 +301,8 @@ def recent_alerts(limit: int = 50):
         parameters={"limit": limit},
     )
     rows = list(result.named_results())
-    latest_telemetry = get_latest_telemetry_by_pair(
-        client, {(row["asset_id"], row["metric"]) for row in rows}
-    )
-    lifecycle_by_key = get_alert_lifecycle_by_key(
-        client, {row["alert_key"] for row in rows}
-    )
+    latest_telemetry = get_latest_telemetry_by_pair(client, {(row["asset_id"], row["metric"]) for row in rows})
+    lifecycle_by_key = get_alert_lifecycle_by_key(client, {row["alert_key"] for row in rows})
     now_row = next(client.query("SELECT now64(3) AS ts").named_results())
     current_ts = now_row["ts"]
     enriched_rows = []
@@ -335,29 +311,19 @@ def recent_alerts(limit: int = 50):
         live_point = latest_telemetry.get((row["asset_id"], row["metric"]))
         lifecycle = lifecycle_by_key.get(row["alert_key"], {})
         start_ts = lifecycle.get("start_ts") or row["ts"]
-        active_condition = bool(
-            live_point and live_point["status"] in {"warning", "critical"}
-        )
+        active_condition = bool(live_point and live_point["status"] in {"warning", "critical"})
         end_ts = None if active_condition else live_point["ts"] if live_point else lifecycle.get("last_event_ts")
         ack = get_latest_acknowledgement(client, row["alert_key"])
         row["acknowledged"] = state["acknowledged"]
         row["muted"] = state["muted"]
-        row["muted_until"] = (
-            serialize_timestamp(state["muted_until"]) if state["muted_until"] else None
-        )
+        row["muted_until"] = serialize_timestamp(state["muted_until"]) if state["muted_until"] else None
         row["shelved"] = state["shelved"]
-        row["shelved_until"] = (
-            serialize_timestamp(state["shelved_until"])
-            if state["shelved_until"]
-            else None
-        )
+        row["shelved_until"] = serialize_timestamp(state["shelved_until"]) if state["shelved_until"] else None
         row["active_condition"] = active_condition
         row["condition_status"] = live_point["status"] if live_point else "unknown"
         row["latest_value"] = live_point["value"] if live_point else None
         row["latest_unit"] = live_point["unit"] if live_point else None
-        row["latest_ts"] = (
-            serialize_timestamp(live_point["ts"]) if live_point else None
-        )
+        row["latest_ts"] = serialize_timestamp(live_point["ts"]) if live_point else None
         row["start_ts"] = serialize_timestamp(start_ts)
         row["end_ts"] = serialize_timestamp(end_ts) if end_ts else None
         row["duration_seconds"] = seconds_between(start_ts, end_ts or current_ts)
@@ -418,9 +384,7 @@ def acknowledge_alert(alert_key: str, payload: AlertActionRequest):
 @app.post("/alerts/{alert_key}/mute")
 def mute_alert(alert_key: str, payload: AlertMuteRequest):
     client = get_client()
-    muted_until = datetime.now(timezone.utc) + timedelta(
-        minutes=payload.duration_minutes
-    )
+    muted_until = datetime.now(UTC) + timedelta(minutes=payload.duration_minutes)
     action = record_alert_action(
         client,
         alert_key=alert_key,
@@ -465,9 +429,7 @@ def unmute_alert(alert_key: str, payload: AlertActionRequest):
 @app.post("/alerts/{alert_key}/shelve")
 def shelve_alert(alert_key: str, payload: AlertShelveRequest):
     client = get_client()
-    shelved_until = datetime.now(timezone.utc) + timedelta(
-        minutes=payload.duration_minutes
-    )
+    shelved_until = datetime.now(UTC) + timedelta(minutes=payload.duration_minutes)
     action = record_alert_action(
         client,
         alert_key=alert_key,

@@ -3,7 +3,7 @@ name = "dc-digital-twin"
 version = "0.1.0"
 description = "A small portfolio project inspired by Niagara-style supervisory control for data centers."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.12"
 dependencies = [
     "clickhouse-connect==0.7.19",
     "fastapi==0.115.0",
@@ -11,6 +11,11 @@ dependencies = [
     "prometheus-client==0.21.0",
     "python-dotenv==1.0.1",
     "uvicorn==0.30.6",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.15.20",
 ]
 
 [build-system]
@@ -22,3 +27,23 @@ packages = ["app"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "app/config" = "app/config"
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+  "E",    # pycodestyle errors
+  "F",    # pyflakes
+  "I",    # import sorting
+  "UP",   # modern Python upgrades
+  "B",    # bugbear: likely bugs/design issues
+  "SIM",  # simplify code
+]
+ignore = []
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"

@@ -114,14 +114,22 @@ curl -X POST http://localhost:8000/alerts/repeated_critical_rack_temp:rack-a01/u
   -d '{"actor": "operator", "note": "Return to active monitoring"}'
 ```
 
-For local Python development outside Docker, sync the workspace and run modules manually from the workspace root:
+13. Run the local predictive-maintenance experiment after telemetry has accumulated:
 
 ```bash
-uv sync
-uv run --package dc-digital-twin python -m app.ingest
-uv run --package dc-digital-twin uvicorn app.api:app --reload --host 0.0.0.0 --port 8000
-uv run --package dc-digital-twin python -m app.simulator
-uv run --package dc-digital-twin python -m app.alerting --interval-seconds 30
+uv run --package dc-digital-twin python -m app.maintenance_model --hours 24 --window-minutes 30 --top-n 10
+```
+
+The script writes:
+
+- `ml/artifacts/maintenance_model.json`
+- `ml/artifacts/maintenance_dataset.json`
+- `ml/artifacts/maintenance_report.json`
+
+For a dependency-free smoke test that does not require ClickHouse, run:
+
+```bash
+uv run --package dc-digital-twin python -m app.maintenance_model --fixture
 ```
 
 ## Default Endpoints
@@ -196,3 +204,24 @@ Design notes:
 - Alarm actions now require an operator confirmation modal with name and note before the UI will acknowledge, mute, or shelve anything.
 - The console also includes an `Acknowledge all active` action, which uses one operator and note to acknowledge each currently active alarm once, deduped by `alert_key`.
 - Embedded Grafana panels use `d-solo` URLs against provisioned dashboards, so the console benefits from the existing observability work instead of duplicating it.
+
+## Predictive Maintenance Modeling
+
+The first predictive-maintenance workflow is intentionally exploratory and local. It lives in `app/maintenance_model.py` and trains a metric-level anomaly baseline from ClickHouse telemetry history, then scores the latest asset windows into a ranked maintenance-risk report.
+
+Choice justification:
+- A mean/std anomaly baseline was chosen over logistic regression or random forest because the simulator does not yet produce real labeled failure outcomes or maintenance work orders. Treating abnormal level, persistence, and adverse trend as a weak maintenance-risk signal is more honest than inventing labels.
+- The implementation uses only the existing Python dependencies and the existing ClickHouse telemetry table, keeping the experiment reproducible without adding scikit-learn, notebooks, model serving, or orchestration.
+- JSON artifacts are used instead of a database table for the first pass because the goal is local exploration: inspect the generated model, feature dataset, and report before deciding whether this should become an API or dashboard feature.
+- A `--fixture` mode is included only for smoke testing the model code path without a running stack; normal runs extract project telemetry from ClickHouse.
+
+Model assumptions:
+- Normal telemetry is used to estimate each metric baseline.
+- Higher values are treated as riskier for thermal, power, and load metrics.
+- `ups_battery_pct` is inverted, so lower values are treated as riskier.
+- Recent windows are scored using latest anomaly z-score, warning or critical persistence, critical persistence, and a capped adverse trend component.
+
+Operational notes:
+- Generate telemetry first with the simulator, then run the experiment from the workspace root with `uv run --package dc-digital-twin python -m app.maintenance_model`.
+- Triggering `cooling-degradation` or `power-outage` before the run should push HVAC or UPS metrics higher in the ranked report.
+- The generated `maintenance_report.json` is the main output for operators; `maintenance_dataset.json` is the extracted feature table, and `maintenance_model.json` contains the trained metric baselines.

@@ -87,7 +87,7 @@ wheels = [
 [[package]]
 name = "dc-digital-twin"
 version = "0.1.0"
-source = { editable = "mini-dc-digital-twin" }
+source = { editable = "apps/api" }
 dependencies = [
     { name = "clickhouse-connect" },
     { name = "fastapi" },

@@ -1,2 +1,2 @@
 [tool.uv.workspace]
-members = ["mini-dc-digital-twin"]
+members = ["apps/api"]

@@ -1,3 +1,5 @@
+name: mini-dc-digital-twin
+
 services:
   mqtt:
     image: eclipse-mosquitto:2
@@ -6,7 +8,7 @@ services:
     ports:
       - "${MQTT_PORT}:1883"
     volumes:
-      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ../mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
 
   clickhouse:
     image: clickhouse/clickhouse-server:24.8
@@ -25,12 +27,19 @@ services:
         hard: 262144
     volumes:
       - clickhouse_data:/var/lib/clickhouse
-      - ./sql/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
-      - ./sql/views.sql:/docker-entrypoint-initdb.d/02-views.sql:ro
+      - ../clickhouse/sql/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ../clickhouse/sql/views.sql:/docker-entrypoint-initdb.d/02-views.sql:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q -O - http://127.0.0.1:8123/ping | grep -q Ok
+      interval: 10s
+      timeout: 3s
+      retries: 12
 
   api:
     build:
-      context: .
+      context: ../../apps/api
     image: mini-dc-app:latest
     container_name: mini-dc-api
     restart: unless-stopped
@@ -52,8 +61,10 @@ services:
     volumes:
       - simulator_runtime:/runtime
     depends_on:
-      - clickhouse
-      - mqtt
+      clickhouse:
+        condition: service_healthy
+      mqtt:
+        condition: service_started
     healthcheck:
       test:
         - CMD-SHELL
@@ -64,7 +75,7 @@ services:
 
   frontend:
     build:
-      context: ./frontend
+      context: ../../apps/operator-console
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
         VITE_GRAFANA_BASE_URL: ${VITE_GRAFANA_BASE_URL:-http://localhost:3000}
@@ -84,9 +95,12 @@ services:
     command: python -m app.ingest
     environment: *app_environment
     depends_on:
-      - api
-      - clickhouse
-      - mqtt
+      api:
+        condition: service_started
+      clickhouse:
+        condition: service_healthy
+      mqtt:
+        condition: service_started
 
   simulator:
     image: mini-dc-app:latest
@@ -109,8 +123,10 @@ services:
     command: python -m app.alerting --interval-seconds ${ALERT_INTERVAL_SECONDS:-30}
     environment: *app_environment
     depends_on:
-      - api
-      - clickhouse
+      api:
+        condition: service_started
+      clickhouse:
+        condition: service_healthy
 
   prometheus:
     image: prom/prometheus:v2.54.1
@@ -121,13 +137,13 @@ services:
     command:
       - --config.file=/etc/prometheus/prometheus.yml
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
     depends_on:
       - api
 
   maintenance-model:
     build:
-      context: .
+      context: ../../apps/api
       dockerfile: Dockerfile
     image: mini-dc-app:latest
     container_name: mini-dc-maintenance-model
@@ -150,7 +166,8 @@ services:
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
       CLICKHOUSE_DATABASE: ${CLICKHOUSE_DATABASE}
     depends_on:
-      - clickhouse
+      clickhouse:
+        condition: service_healthy
     restart: unless-stopped
 
   grafana:
@@ -169,11 +186,13 @@ services:
       GF_INSTALL_PLUGINS: grafana-clickhouse-datasource,grafana-clock-panel
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ../grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
-      - clickhouse
-      - prometheus
+      clickhouse:
+        condition: service_healthy
+      prometheus:
+        condition: service_started
 
 volumes:
   clickhouse_data:

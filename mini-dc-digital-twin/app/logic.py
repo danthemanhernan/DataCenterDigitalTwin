@@ -1,6 +1,6 @@
 import json
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from random import choice
 from typing import Any
@@ -38,7 +38,7 @@ SCENARIO_PROFILES = load_scenario_profiles()
 
 
 def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def serialize_timestamp(value: datetime) -> str:
@@ -48,18 +48,18 @@ def serialize_timestamp(value: datetime) -> str:
 def parse_timestamp(value: Any) -> datetime:
     if isinstance(value, datetime):
         if value.tzinfo is None:
-            return value.replace(tzinfo=timezone.utc)
-        return value.astimezone(timezone.utc)
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
 
     if value in (None, ""):
-        return datetime.now(timezone.utc)
+        return datetime.now(UTC)
 
     if isinstance(value, str):
         normalized = value.replace("Z", "+00:00")
         parsed = datetime.fromisoformat(normalized)
         if parsed.tzinfo is None:
-            return parsed.replace(tzinfo=timezone.utc)
-        return parsed.astimezone(timezone.utc)
+            return parsed.replace(tzinfo=UTC)
+        return parsed.astimezone(UTC)
 
     raise TypeError(f"Unsupported timestamp value: {value!r}")
 
@@ -98,9 +98,7 @@ def trigger_scenario(scenario: str, duration_seconds: int = 30) -> dict[str, Any
     command = {
         "scenario": scenario,
         "activated_at": serialize_timestamp(activated_at),
-        "expires_at": serialize_timestamp(
-            datetime.fromtimestamp(expires_at, tz=timezone.utc)
-        ),
+        "expires_at": serialize_timestamp(datetime.fromtimestamp(expires_at, tz=UTC)),
         "duration_seconds": max(duration_seconds, 1),
     }
     SIMULATOR_CONTROL_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -172,9 +170,7 @@ def normalize_message(topic: str, payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def scenario_progress(
-    scenario: dict[str, Any] | None, ts: datetime | None = None
-) -> float:
+def scenario_progress(scenario: dict[str, Any] | None, ts: datetime | None = None) -> float:
     if not scenario:
         return 0.0
 
@@ -206,9 +202,7 @@ def interpolate_profile(points: list[tuple[float, float]], progress: float) -> f
     return points[-1][1]
 
 
-def build_point(
-    asset_type: str, asset_id: str, metric: str, value: float, ts: datetime
-) -> dict[str, Any]:
+def build_point(asset_type: str, asset_id: str, metric: str, value: float, ts: datetime) -> dict[str, Any]:
     return {
         "asset_type": asset_type,
         "asset_id": asset_id,
@@ -233,9 +227,7 @@ def generate_simulated_points() -> list[dict[str, Any]]:
     ]
 
 
-def generate_profiled_points(
-    scenario_name: str, scenario: dict[str, Any] | None
-) -> list[dict[str, Any]]:
+def generate_profiled_points(scenario_name: str, scenario: dict[str, Any] | None) -> list[dict[str, Any]]:
     ts = utc_now()
     progress = scenario_progress(scenario, ts)
     profile = SCENARIO_PROFILES[scenario_name]

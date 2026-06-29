@@ -2,12 +2,11 @@ import argparse
 import os
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import clickhouse_connect
 from dotenv import load_dotenv
-
 
 load_dotenv()
 
@@ -159,15 +158,15 @@ ALERT_RULES = [
 
 
 def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def normalize_utc(ts: Any) -> Any:
     if ts is None or not isinstance(ts, datetime):
         return ts
     if ts.tzinfo is None:
-        return ts.replace(tzinfo=timezone.utc)
-    return ts.astimezone(timezone.utc)
+        return ts.replace(tzinfo=UTC)
+    return ts.astimezone(UTC)
 
 
 def get_client():
@@ -213,11 +212,7 @@ def _latest_timed_action_is_active(client: Any, alert_key: str, action: str, unt
 
     latest_action = row[0]
     active_until = normalize_utc(row[1])
-    return bool(
-        latest_action == action
-        and active_until is not None
-        and active_until > utc_now()
-    )
+    return bool(latest_action == action and active_until is not None and active_until > utc_now())
 
 
 def alert_is_muted(client: Any, alert_key: str) -> bool:
@@ -274,11 +269,7 @@ def get_alert_state(client: Any, alert_key: str) -> dict[str, Any]:
                 shelved_until = normalize_utc(row["shelved_until"])
             break
 
-    acknowledged = bool(
-        latest_event_ts is not None
-        and latest_ack_ts is not None
-        and latest_ack_ts >= latest_event_ts
-    )
+    acknowledged = bool(latest_event_ts is not None and latest_ack_ts is not None and latest_ack_ts >= latest_event_ts)
     muted = muted_until is not None and muted_until > utc_now()
     shelved = shelved_until is not None and shelved_until > utc_now()
     return {
@@ -351,11 +342,7 @@ def alert_already_open(client: Any, alert_key: str, severity: str, lookback_minu
 
     latest_event_ts = get_latest_alert_event_ts(client, alert_key, severity)
     latest_ack_ts = get_latest_action_ts(client, alert_key, "acknowledge")
-    return not (
-        latest_event_ts is not None
-        and latest_ack_ts is not None
-        and latest_ack_ts >= latest_event_ts
-    )
+    return not (latest_event_ts is not None and latest_ack_ts is not None and latest_ack_ts >= latest_event_ts)
 
 
 def get_latest_action_ts(client: Any, alert_key: str, action: str) -> Any:
@@ -445,11 +432,14 @@ def evaluate_rules(client: Any) -> list[dict[str, Any]]:
         for row in result.named_results():
             candidate = dict(row)
             candidate["rule_name"] = rule.name
-            if alert_is_muted(client, candidate["alert_key"]) or alert_is_shelved(
-                client, candidate["alert_key"]
-            ):
+            if alert_is_muted(client, candidate["alert_key"]) or alert_is_shelved(client, candidate["alert_key"]):
                 continue
-            if not alert_already_open(client, candidate["alert_key"], candidate["severity"], rule.window_minutes):
+            if not alert_already_open(
+                client,
+                candidate["alert_key"],
+                candidate["severity"],
+                rule.window_minutes,
+            ):
                 candidates.append(candidate)
     return candidates
 
@@ -465,8 +455,17 @@ def run_alert_cycle(client: Any) -> list[dict[str, Any]]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Evaluate telemetry and emit alert events.")
-    parser.add_argument("--once", action="store_true", help="Run a single alert evaluation cycle and exit.")
-    parser.add_argument("--interval-seconds", type=int, default=30, help="Polling interval for continuous mode.")
+    parser.add_argument(
+        "--once",
+        action="store_true",
+        help="Run a single alert evaluation cycle and exit.",
+    )
+    parser.add_argument(
+        "--interval-seconds",
+        type=int,
+        default=30,
+        help="Polling interval for continuous mode.",
+    )
     args = parser.parse_args()
 
     client = get_client()
@@ -477,8 +476,7 @@ def main() -> None:
         print(f"Emitted {len(emitted)} alert event(s)")
         for alert in emitted:
             print(
-                f"{alert['rule_name']} {alert['asset_id']} severity={alert['severity']} "
-                f"value={alert['current_value']}"
+                f"{alert['rule_name']} {alert['asset_id']} severity={alert['severity']} value={alert['current_value']}"
             )
         return
 

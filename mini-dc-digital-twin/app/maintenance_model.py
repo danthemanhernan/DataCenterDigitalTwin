@@ -4,7 +4,7 @@ import os
 import time
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from statistics import mean, stdev
 from typing import Any
 
@@ -12,7 +12,6 @@ import clickhouse_connect
 from dotenv import load_dotenv
 
 from .logic import determine_alarm
-
 
 load_dotenv()
 
@@ -89,18 +88,18 @@ class TelemetryPoint:
 
 
 def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def normalize_ts(value: Any) -> datetime:
     if isinstance(value, datetime):
         if value.tzinfo is None:
-            return value.replace(tzinfo=timezone.utc)
-        return value.astimezone(timezone.utc)
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
     parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
 
 
 def get_client() -> Any:
@@ -169,7 +168,11 @@ def build_fixture_points() -> list[TelemetryPoint]:
         for asset_type, asset_id, metric, baseline, drift in specs:
             value = baseline + (step * drift)
             if asset_id == "hvac-1" and step >= 36:
-                value += {"hvac_supply_temp_c": 6.0, "hvac_return_temp_c": 5.0, "hvac_fan_speed_pct": 30.0}.get(metric, 0.0)
+                value += {
+                    "hvac_supply_temp_c": 6.0,
+                    "hvac_return_temp_c": 5.0,
+                    "hvac_fan_speed_pct": 30.0,
+                }.get(metric, 0.0)
             if asset_id == "ups-a" and metric == "ups_battery_pct" and step >= 38:
                 value -= 42.0
             status, _ = determine_alarm(metric, value)
@@ -260,9 +263,7 @@ def build_training_dataset(points: list[TelemetryPoint], window_minutes: int) ->
     return dataset
 
 
-def score_dataset(
-    dataset: list[dict[str, Any]], model: dict[str, dict[str, float]]
-) -> list[dict[str, Any]]:
+def score_dataset(dataset: list[dict[str, Any]], model: dict[str, dict[str, float]]) -> list[dict[str, Any]]:
     scored = []
     for row in dataset:
         metric = row["metric"]
@@ -272,10 +273,7 @@ def score_dataset(
         trend_component = clamp(max(trend, 0) * 0.15, 0, 10)
         baseline = model.get(metric, {})
         risk_score = (
-            max(zscore, 0) * 18
-            + row["warning_or_critical_ratio"] * 35
-            + row["critical_ratio"] * 30
-            + trend_component
+            max(zscore, 0) * 18 + row["warning_or_critical_ratio"] * 35 + row["critical_ratio"] * 30 + trend_component
         )
         if not math.isfinite(risk_score):
             risk_score = 0.0
@@ -380,11 +378,7 @@ def insert_scores(
 
 def run_cycle(client: Any, args: argparse.Namespace) -> list[dict[str, Any]]:
     ensure_maintenance_schema(client)
-    points = (
-        build_fixture_points()
-        if args.fixture
-        else fetch_telemetry(client, args.hours, args.limit)
-    )
+    points = build_fixture_points() if args.fixture else fetch_telemetry(client, args.hours, args.limit)
     if not points:
         print("Maintenance model cycle skipped: no telemetry rows found")
         return []
@@ -406,15 +400,37 @@ def run_cycle(client: Any, args: argparse.Namespace) -> list[dict[str, Any]]:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Publish cyclic predictive-maintenance scores from telemetry history."
-    )
+    parser = argparse.ArgumentParser(description="Publish cyclic predictive-maintenance scores from telemetry history.")
     parser.add_argument("--once", action="store_true", help="Run one scoring cycle and exit.")
-    parser.add_argument("--interval-seconds", type=int, default=DEFAULT_INTERVAL_SECONDS, help="Polling interval for continuous mode.")
-    parser.add_argument("--hours", type=int, default=DEFAULT_LOOKBACK_HOURS, help="Telemetry lookback window for ClickHouse extraction.")
-    parser.add_argument("--limit", type=int, default=DEFAULT_ROW_LIMIT, help="Maximum telemetry rows to extract.")
-    parser.add_argument("--window-minutes", type=int, default=DEFAULT_WINDOW_MINUTES, help="Recent scoring window.")
-    parser.add_argument("--fixture", action="store_true", help="Use deterministic sample telemetry but still publish scores to ClickHouse.")
+    parser.add_argument(
+        "--interval-seconds",
+        type=int,
+        default=DEFAULT_INTERVAL_SECONDS,
+        help="Polling interval for continuous mode.",
+    )
+    parser.add_argument(
+        "--hours",
+        type=int,
+        default=DEFAULT_LOOKBACK_HOURS,
+        help="Telemetry lookback window for ClickHouse extraction.",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=DEFAULT_ROW_LIMIT,
+        help="Maximum telemetry rows to extract.",
+    )
+    parser.add_argument(
+        "--window-minutes",
+        type=int,
+        default=DEFAULT_WINDOW_MINUTES,
+        help="Recent scoring window.",
+    )
+    parser.add_argument(
+        "--fixture",
+        action="store_true",
+        help="Use deterministic sample telemetry but still publish scores to ClickHouse.",
+    )
     return parser.parse_args()
 
 

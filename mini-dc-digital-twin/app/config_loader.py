@@ -1,5 +1,5 @@
 import json
-from functools import lru_cache
+from functools import cache, lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -10,7 +10,7 @@ def config_key(asset_type: str, asset_id: str, metric: str) -> str:
     return f"{asset_type}|{asset_id}|{metric}"
 
 
-@lru_cache(maxsize=None)
+@cache
 def load_json_config(name: str) -> Any:
     return json.loads((CONFIG_DIR / name).read_text())
 
@@ -43,22 +43,15 @@ def load_zone_by_asset() -> dict[str, str]:
 @lru_cache(maxsize=1)
 def load_baseline_choices() -> dict[tuple[str, str, str], list[float]]:
     raw = load_json_config("baseline_choices.json")
-    return {
-        tuple(key.split("|")): [float(value) for value in values]
-        for key, values in raw.items()
-    }
+    return {tuple(key.split("|")): [float(value) for value in values] for key, values in raw.items()}
 
 
 @lru_cache(maxsize=1)
-def load_scenario_profiles() -> (
-    dict[str, dict[tuple[str, str, str], list[tuple[float, float]]]]
-):
+def load_scenario_profiles() -> dict[str, dict[tuple[str, str, str], list[tuple[float, float]]]]:
     raw = load_json_config("scenario_profiles.json")
     return {
         scenario_name: {
-            tuple(key.split("|")): [
-                (float(progress), float(value)) for progress, value in points
-            ]
+            tuple(key.split("|")): [(float(progress), float(value)) for progress, value in points]
             for key, points in profiles.items()
         }
         for scenario_name, profiles in raw.items()

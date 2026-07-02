@@ -21,17 +21,28 @@ The simulated topology assumes a simple 2N redundant layout with two representat
 
 ## Project Flow
 
-1. `app/simulator.py` publishes sample telemetry to MQTT topics like `dc/telemetry/rack/rack-a01`.
-2. `app/ingest.py` subscribes to those topics, normalizes the payload, derives health signals and alarm state, and inserts records into ClickHouse.
-3. `app/api.py` reads recent telemetry and active alarms from ClickHouse through FastAPI.
+1. `apps/api/app/simulator.py` publishes sample telemetry to MQTT topics like `dc/telemetry/rack/rack-a01`.
+2. `apps/api/app/ingest.py` subscribes to those topics, normalizes the payload, derives health signals and alarm state, and inserts records into ClickHouse.
+3. `apps/api/app/api.py` reads recent telemetry and active alarms from ClickHouse through FastAPI.
 4. Grafana queries ClickHouse to show trends, alarm counts, and recent events.
-5. The React operator console is built with Vite and served from nginx.
+5. The React operator console in `apps/operator-console/` is built with Vite and served from nginx.
 
 ## Quick Start
 
-1. Copy `.env.example` to `.env` and configure the variables as needed.
-2. Adjust `FRONTEND_PORT`, `VITE_API_BASE_URL`, or `VITE_GRAFANA_BASE_URL` in `.env` if you want different browser-facing URLs for the React console.
-3. Start the containerized stack. Docker Compose will build one Python app image for the API, ingest worker, simulator, and alerting worker, plus a frontend image that builds the React app and serves it from nginx. MQTT, ClickHouse, Prometheus, and Grafana run alongside them:
+1. Change into the Compose deployment directory:
+
+```bash
+cd deploy/compose
+```
+
+2. Copy `.env.example` to `.env` and configure the variables as needed.
+
+```bash
+cp .env.example .env
+```
+
+3. Adjust `FRONTEND_PORT`, `VITE_API_BASE_URL`, or `VITE_GRAFANA_BASE_URL` in `.env` if you want different browser-facing URLs for the React console.
+4. Start the containerized stack. Docker Compose will build one Python app image for the API, ingest worker, simulator, alerting worker, and maintenance-model worker, plus a frontend image that builds the React app and serves it from nginx. MQTT, ClickHouse, Prometheus, and Grafana run alongside them:
 
 ```bash
 docker compose up -d --build
@@ -43,11 +54,12 @@ The app services map to the scripts that used to run in separate terminals:
 - `ingest`: `python -m app.ingest`
 - `simulator`: `python -m app.simulator`
 - `alerting`: `python -m app.alerting --interval-seconds ${ALERT_INTERVAL_SECONDS:-30}`
+- `maintenance-model`: `python -m app.maintenance_model --interval-seconds ${MAINTENANCE_MODEL_INTERVAL_SECONDS:-300}`
 - `frontend`: Vite production build served by nginx on `${FRONTEND_PORT:-5173}`
 
 The API and simulator share a small Docker volume for `SIMULATOR_CONTROL_PATH`, so scenario calls from the API change the telemetry emitted by the simulator container.
 
-4. Generate a bit of API traffic so the monitoring dashboard has data:
+5. Generate a bit of API traffic so the monitoring dashboard has data:
 
 ```bash
 curl http://localhost:8000/health
@@ -55,7 +67,7 @@ curl http://localhost:8000/summary
 curl "http://localhost:8000/telemetry/recent?limit=10"
 ```
 
-5. Trigger a temporary simulator scenario from the API:
+6. Trigger a temporary simulator scenario from the API:
 
 ```bash
 curl -X POST http://localhost:8000/simulator/scenarios/power-outage \
@@ -75,22 +87,22 @@ curl -X POST http://localhost:8000/simulator/scenarios/load-transfer \
   -d '{"duration_seconds": 45}'
 ```
 
-6. Check the running app services:
+7. Check the running app services:
 
 ```bash
 docker compose ps
-docker compose logs -f api ingest simulator alerting frontend
+docker compose logs -f api ingest simulator alerting maintenance-model frontend
 ```
 
-7. For local frontend development outside Docker, run the Vite dev server from `frontend/`:
+8. For local frontend development outside Docker, run the Vite dev server from the repo root:
 
 ```bash
-cd frontend
+cd apps/operator-console
 npm install
 npm run dev
 ```
 
-8. Take alarm actions from the API:
+9. Take alarm actions from the API:
 
 ```bash
 curl -X POST http://localhost:8000/alerts/repeated_critical_rack_temp:rack-a01/acknowledge \
@@ -114,22 +126,18 @@ curl -X POST http://localhost:8000/alerts/repeated_critical_rack_temp:rack-a01/u
   -d '{"actor": "operator", "note": "Return to active monitoring"}'
 ```
 
-13. Run the local predictive-maintenance experiment after telemetry has accumulated:
+10. Run a local predictive-maintenance cycle from the repo root after telemetry has accumulated:
 
 ```bash
-uv run --package dc-digital-twin python -m app.maintenance_model --hours 24 --window-minutes 30 --top-n 10
+uv run --package dc-digital-twin python -m app.maintenance_model --once --hours 24 --window-minutes 30
 ```
 
-The script writes:
+The worker publishes rows into ClickHouse table `dc_twin.maintenance_risk_scores`.
 
-- `ml/artifacts/maintenance_model.json`
-- `ml/artifacts/maintenance_dataset.json`
-- `ml/artifacts/maintenance_report.json`
-
-For a dependency-free smoke test that does not require ClickHouse, run:
+For deterministic sample telemetry, run:
 
 ```bash
-uv run --package dc-digital-twin python -m app.maintenance_model --fixture
+uv run --package dc-digital-twin python -m app.maintenance_model --once --fixture
 ```
 
 ## Default Endpoints
@@ -147,14 +155,22 @@ uv run --package dc-digital-twin python -m app.maintenance_model --fixture
 - MQTT broker: `localhost:1883`
 - ClickHouse HTTP: `http://localhost:8123/play`
 
+## CI/CD and Images
+
+The repository CI is designed to prove that the monorepo can be built and packaged before a branch merges. It checks the uv workspace, Python formatting and linting, Python bytecode compilation, the React production build, and the Docker Compose configuration under `deploy/compose/`.
+
+For local development, Compose builds `mini-dc-app:latest` from `apps/api/` and `mini-dc-frontend:latest` from `apps/operator-console/`. These tags are local Docker images, not files in the repository. They are stored in the Docker image store on the machine that ran `docker compose up --build`.
+
+For shareable deployments, publish immutable tags to a registry such as GitHub Container Registry and deploy those tags instead of relying on every target machine to build from source.
+
 ## Notes
 
 - Normal simulator telemetry stays below alarm thresholds so alarms are driven by explicit simulator scenarios rather than background noise.
 - The simulated plant assumes 2N redundancy so paired HVAC, UPS, and PDU assets publish comparable metrics for clearer side-by-side graphs.
 - The enrichment layer adds site, zone, asset class, severity, and alarm metadata.
 - The SQL views are designed to be easy starting points for Grafana panels.
-- The repo uses a uv workspace at the root, with the app defined in `mini-dc-digital-twin/pyproject.toml`.
-- ClickHouse automatically applies the SQL files in `sql/` on first startup of a fresh `clickhouse_data` volume.
+- The repo uses a uv workspace at the root, with the Python package defined in `apps/api/pyproject.toml`.
+- ClickHouse automatically applies the SQL files mounted from `deploy/clickhouse/sql/` on first startup of a fresh `clickhouse_data` volume.
 - Grafana provisions ClickHouse and Prometheus datasources automatically and loads starter dashboards for facility telemetry and API monitoring.
 - Grafana also provisions `Mini DC Facility Trends Live`, a copy of the facility dashboard that reads raw telemetry timestamps without minute bucketing so live scenario testing shows every simulator step.
 - Trend dashboards now include threshold lines that match the warning and critical alarm rules in `app/logic.py`, and the asset trend dashboard exposes Grafana variables for rack, HVAC, and power asset selection.
@@ -190,7 +206,7 @@ Operational notes:
 
 ## React Operations Frontend
 
-The React console lives in `frontend/` and complements Grafana rather than replacing it.
+The React console lives in `apps/operator-console/` and complements Grafana rather than replacing it.
 
 Choice justification:
 - React plus Vite keeps the first frontend iteration lightweight and local-development friendly without introducing a large UI framework stack.
@@ -207,12 +223,12 @@ Design notes:
 
 ## Predictive Maintenance Modeling
 
-The first predictive-maintenance workflow is intentionally exploratory and local. It lives in `app/maintenance_model.py` and trains a metric-level anomaly baseline from ClickHouse telemetry history, then scores the latest asset windows into a ranked maintenance-risk report.
+The first predictive-maintenance workflow lives in `apps/api/app/maintenance_model.py` and trains a metric-level anomaly baseline from ClickHouse telemetry history, then scores the latest asset windows into ClickHouse.
 
 Choice justification:
 - A mean/std anomaly baseline was chosen over logistic regression or random forest because the simulator does not yet produce real labeled failure outcomes or maintenance work orders. Treating abnormal level, persistence, and adverse trend as a weak maintenance-risk signal is more honest than inventing labels.
 - The implementation uses only the existing Python dependencies and the existing ClickHouse telemetry table, keeping the experiment reproducible without adding scikit-learn, notebooks, model serving, or orchestration.
-- JSON artifacts are used instead of a database table for the first pass because the goal is local exploration: inspect the generated model, feature dataset, and report before deciding whether this should become an API or dashboard feature.
+- Maintenance scores are persisted to `dc_twin.maintenance_risk_scores` so they can be queried by the API, Grafana, or future operator-console views.
 - A `--fixture` mode is included only for smoke testing the model code path without a running stack; normal runs extract project telemetry from ClickHouse.
 
 Model assumptions:
@@ -222,6 +238,6 @@ Model assumptions:
 - Recent windows are scored using latest anomaly z-score, warning or critical persistence, critical persistence, and a capped adverse trend component.
 
 Operational notes:
-- Generate telemetry first with the simulator, then run the experiment from the workspace root with `uv run --package dc-digital-twin python -m app.maintenance_model`.
+- Generate telemetry first with the simulator, then run the worker from the workspace root with `uv run --package dc-digital-twin python -m app.maintenance_model --once`.
 - Triggering `cooling-degradation` or `power-outage` before the run should push HVAC or UPS metrics higher in the ranked report.
-- The generated `maintenance_report.json` is the main output for operators; `maintenance_dataset.json` is the extracted feature table, and `maintenance_model.json` contains the trained metric baselines.
+- The `maintenance_risk_scores` table is the durable output for operators and dashboards.

@@ -6,11 +6,11 @@ Make DataCenterDigitalTwin look and operate like a professional engineering repo
 
 ## Repository Structure
 
-- [ ] Review current repository layout
-- [ ] Separate application code, simulation code, infrastructure code, and docs
-- [ ] Add clear module boundaries
-- [ ] Add examples or sample configs
-- [ ] Remove unused or experimental files
+- [x] Review current repository layout
+- [x] Separate application code, simulation code, infrastructure code, and docs
+- [x] Add clear module boundaries
+- [x] Add examples or sample configs
+- [x] Remove unused or experimental files
 
 ## Python Tooling
 

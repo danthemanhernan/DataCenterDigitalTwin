@@ -141,6 +141,9 @@ apps/operator-console/node_modules/
 apps/operator-console/dist/
 apps/operator-console/.vite/
 
+# Retired pre-monorepo path. Keep stale local caches/artifacts out of status.
+mini-dc-digital-twin/
+
 # Spyder project settings
 .spyderproject
 .spyproject

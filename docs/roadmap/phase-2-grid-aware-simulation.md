@@ -4,6 +4,22 @@
 
 Transform the project from a telemetry simulator into a realistic AI data center digital twin capable of simulating electrical infrastructure, thermal behavior, utility constraints, and operational decision making.
 
+## Priority Implementation Scenario
+
+### Demand-Response Event Scenario
+
+Implement one end-to-end demand-response scenario in `DataCenterDigitalTwin`:
+
+- [ ] Simulate a utility power price spike
+- [ ] Trigger GPU load shedding based on configurable demand-response policy
+- [ ] Model the cooling loop response after compute load reduction
+- [ ] Store power, GPU, cooling, KPI, and alert telemetry in ClickHouse
+- [ ] Display the event timeline in Grafana
+- [ ] Surface the active alert and recovery status in the React operator console
+- [ ] Expose the scenario trigger and reset controls through FastAPI
+
+**Scenario flow:** power price spike → GPU load shed → cooling loop response → ClickHouse telemetry → Grafana/operator alert.
+
 ## Electrical Infrastructure
 
 ### Utility Power

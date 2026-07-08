@@ -26,6 +26,7 @@ Open:
 - [Master roadmap](docs/roadmap/MASTER_ROADMAP.md)
 - [Phase 1 roadmap](docs/roadmap/phase-1-production.md)
 - [Architecture overview](docs/architecture.md)
+- [Interactive architecture map](docs/architecture-map.html)
 - [Local development guide](docs/local-development.md)
 - [Local stack operations](docs/local-stack.md)
 - [Environment variables](docs/environment.md)
@@ -45,6 +46,7 @@ The repo is organized as a deployable monorepo:
 - `docs/python-tooling.md`: uv, Ruff, dependency, and type-checking plan for the Python backend.
 - `docs/ci-cd.md`: GitHub Actions workflow explanation and local parity commands.
 - `docs/architecture.md`: service boundaries and data flow.
+- `docs/architecture-map.html`: visual architecture map with platform icons and owned-service symbols.
 - `docs/local-development.md`: day-to-day development commands.
 - `docs/environment.md`: environment variable reference.
 - `docs/screenshots.md`: sample UI screenshots and recapture notes.

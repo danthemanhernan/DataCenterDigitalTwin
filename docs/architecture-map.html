@@ -1,0 +1,563 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DataCenterDigitalTwin Architecture Map</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0b0d12;
+        --panel: #12151d;
+        --panel-2: #171b24;
+        --line: #2b3240;
+        --text: #f3f5f8;
+        --muted: #a9b1c1;
+        --accent: #ff4f5e;
+        --flow: #48d6b2;
+        --storage: #ffd236;
+        --observe: #f46800;
+        --api: #00a884;
+        --frontend: #61dafb;
+        --infra: #6d7cff;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at 8% 12%, rgba(255, 79, 94, 0.2), transparent 28rem),
+          radial-gradient(circle at 85% 6%, rgba(72, 214, 178, 0.13), transparent 24rem),
+          var(--bg);
+        color: var(--text);
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      .page {
+        width: min(1480px, calc(100% - 48px));
+        margin: 0 auto;
+        padding: 40px 0 56px;
+      }
+
+      header {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 24px;
+        align-items: end;
+        margin-bottom: 28px;
+      }
+
+      h1,
+      h2,
+      p {
+        margin: 0;
+      }
+
+      h1 {
+        font-size: clamp(2.4rem, 5vw, 5.25rem);
+        line-height: 0.95;
+        letter-spacing: 0;
+        max-width: 780px;
+      }
+
+      .subtitle {
+        margin-top: 18px;
+        max-width: 820px;
+        color: var(--muted);
+        font-size: 1.05rem;
+        line-height: 1.6;
+      }
+
+      .legend {
+        display: grid;
+        gap: 10px;
+        min-width: 230px;
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(18, 21, 29, 0.78);
+      }
+
+      .legend-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      .swatch {
+        width: 14px;
+        height: 14px;
+        border-radius: 4px;
+      }
+
+      .map {
+        position: relative;
+        display: grid;
+        grid-template-columns: 1.05fr 0.9fr 0.95fr 0.95fr;
+        gap: 18px;
+        align-items: stretch;
+      }
+
+      .lane {
+        min-height: 680px;
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(18, 21, 29, 0.78);
+      }
+
+      .lane h2 {
+        color: var(--muted);
+        font-size: 0.86rem;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        margin-bottom: 14px;
+      }
+
+      .stack {
+        display: grid;
+        gap: 14px;
+      }
+
+      .node {
+        position: relative;
+        min-height: 116px;
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background:
+          linear-gradient(145deg, rgba(255, 255, 255, 0.04), transparent),
+          var(--panel-2);
+      }
+
+      .node.owned {
+        border-color: rgba(72, 214, 178, 0.36);
+      }
+
+      .node.storage {
+        border-color: rgba(255, 210, 54, 0.5);
+      }
+
+      .node.observe {
+        border-color: rgba(244, 104, 0, 0.5);
+      }
+
+      .node.frontend {
+        border-color: rgba(97, 218, 251, 0.45);
+      }
+
+      .node.api {
+        border-color: rgba(0, 168, 132, 0.45);
+      }
+
+      .node-title {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 10px;
+      }
+
+      .node-title h3 {
+        margin: 0;
+        font-size: 1.08rem;
+      }
+
+      .node p {
+        color: var(--muted);
+        font-size: 0.9rem;
+        line-height: 1.45;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        margin-top: 12px;
+        padding: 6px 8px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        color: var(--muted);
+        font-size: 0.75rem;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        background: rgba(0, 0, 0, 0.18);
+      }
+
+      .icon {
+        position: relative;
+        display: grid;
+        place-items: center;
+        flex: 0 0 auto;
+        width: 44px;
+        height: 44px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.06);
+        overflow: hidden;
+      }
+
+      .icon img {
+        width: 28px;
+        height: 28px;
+        object-fit: contain;
+      }
+
+      .icon .fallback {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        color: var(--text);
+        font-weight: 800;
+        font-size: 0.82rem;
+        z-index: -1;
+      }
+
+      .custom-icon svg {
+        width: 30px;
+        height: 30px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .flowline {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: center;
+        gap: 10px;
+        margin: 14px 0;
+        color: var(--muted);
+        font-size: 0.74rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+      }
+
+      .flowline::before,
+      .flowline::after {
+        content: "";
+        height: 1px;
+        background: linear-gradient(90deg, transparent, var(--flow), transparent);
+      }
+
+      .wide {
+        grid-column: 1 / -1;
+        margin-top: 18px;
+        padding: 18px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(18, 21, 29, 0.82);
+      }
+
+      .flow-grid {
+        display: grid;
+        grid-template-columns: repeat(8, minmax(0, 1fr));
+        gap: 10px;
+        margin-top: 14px;
+      }
+
+      .step {
+        min-height: 86px;
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.04);
+      }
+
+      .step strong {
+        display: block;
+        margin-bottom: 6px;
+      }
+
+      .step span {
+        color: var(--muted);
+        font-size: 0.82rem;
+        line-height: 1.35;
+      }
+
+      footer {
+        margin-top: 18px;
+        color: var(--muted);
+        font-size: 0.85rem;
+        line-height: 1.5;
+      }
+
+      @media (max-width: 1120px) {
+        header {
+          grid-template-columns: 1fr;
+        }
+
+        .map {
+          grid-template-columns: 1fr 1fr;
+        }
+
+        .lane {
+          min-height: auto;
+        }
+
+        .flow-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-width: 700px) {
+        .page {
+          width: min(100% - 28px, 1480px);
+          padding-top: 24px;
+        }
+
+        .map {
+          grid-template-columns: 1fr;
+        }
+
+        .flow-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <header>
+        <div>
+          <h1>DataCenterDigitalTwin Architecture Map</h1>
+          <p class="subtitle">
+            A visual map of the local digital-twin stack: simulated facility telemetry moves through MQTT,
+            batched ingestion, ClickHouse storage, API and alerting services, Prometheus metrics, Grafana
+            dashboards, and the React operator console.
+          </p>
+        </div>
+        <aside class="legend" aria-label="Legend">
+          <div class="legend-row"><span class="swatch" style="background: var(--flow)"></span> Owned service</div>
+          <div class="legend-row"><span class="swatch" style="background: var(--storage)"></span> Storage</div>
+          <div class="legend-row"><span class="swatch" style="background: var(--observe)"></span> Observability</div>
+          <div class="legend-row"><span class="swatch" style="background: var(--frontend)"></span> Operator UI</div>
+          <div class="legend-row"><span class="swatch" style="background: var(--infra)"></span> Platform / runtime</div>
+        </aside>
+      </header>
+
+      <section class="map" aria-label="Architecture service map">
+        <section class="lane">
+          <h2>Telemetry Generation</h2>
+          <div class="stack">
+            <article class="node owned">
+              <div class="node-title">
+                <div class="icon custom-icon" style="color: var(--flow)">
+                  <svg viewBox="0 0 32 32" aria-hidden="true">
+                    <path d="M5 23c3-8 7-8 10 0s7 8 12 0" />
+                    <path d="M6 10h4m3 0h4m3 0h6" />
+                    <path d="M16 5v22" />
+                  </svg>
+                </div>
+                <h3>Simulator Worker</h3>
+              </div>
+              <p>Publishes normal and scenario-driven telemetry for racks, HVAC, UPS, and PDU assets.</p>
+              <span class="badge">python -m app.simulator</span>
+            </article>
+
+            <div class="flowline">MQTT publish</div>
+
+            <article class="node">
+              <div class="node-title">
+                <div class="icon">
+                  <span class="fallback">MQ</span>
+                  <img src="https://cdn.simpleicons.org/mqtt/660066" alt="MQTT logo" />
+                </div>
+                <h3>MQTT Broker</h3>
+              </div>
+              <p>Mosquitto carries telemetry on the topic tree used by ingest and external tools.</p>
+              <span class="badge">dc/telemetry/#</span>
+            </article>
+
+            <article class="node">
+              <div class="node-title">
+                <div class="icon">
+                  <span class="fallback">DK</span>
+                  <img src="https://cdn.simpleicons.org/docker/2496ED" alt="Docker logo" />
+                </div>
+                <h3>Docker Compose</h3>
+              </div>
+              <p>Runs the local stack and provides service DNS, port mappings, and shared volumes.</p>
+              <span class="badge">deploy/compose/docker-compose.yml</span>
+            </article>
+          </div>
+        </section>
+
+        <section class="lane">
+          <h2>Processing And Storage</h2>
+          <div class="stack">
+            <article class="node owned">
+              <div class="node-title">
+                <div class="icon custom-icon" style="color: var(--flow)">
+                  <svg viewBox="0 0 32 32" aria-hidden="true">
+                    <path d="M6 6h20l-8 10v7l-4 3v-10z" />
+                    <path d="M9 22h7" />
+                    <path d="M20 22h3" />
+                  </svg>
+                </div>
+                <h3>Ingest Worker</h3>
+              </div>
+              <p>Subscribes to MQTT, normalizes payloads, enriches alarm fields, and batches ClickHouse inserts.</p>
+              <span class="badge">python -m app.ingest</span>
+            </article>
+
+            <div class="flowline">batched rows</div>
+
+            <article class="node storage">
+              <div class="node-title">
+                <div class="icon">
+                  <span class="fallback">CH</span>
+                  <img src="https://cdn.simpleicons.org/clickhouse/FFCC01" alt="ClickHouse logo" />
+                </div>
+                <h3>ClickHouse</h3>
+              </div>
+              <p>Stores raw telemetry, alert events, alert actions, and maintenance risk scores.</p>
+              <span class="badge">dc_twin.telemetry_raw</span>
+            </article>
+
+            <article class="node owned">
+              <div class="node-title">
+                <div class="icon custom-icon" style="color: var(--accent)">
+                  <svg viewBox="0 0 32 32" aria-hidden="true">
+                    <path d="M9 21h14" />
+                    <path d="M11 21v-7a5 5 0 0 1 10 0v7" />
+                    <path d="M14 25a2 2 0 0 0 4 0" />
+                    <path d="M23 9l3-3" />
+                    <path d="M9 9L6 6" />
+                  </svg>
+                </div>
+                <h3>Alerting Worker</h3>
+              </div>
+              <p>Evaluates recent telemetry windows and writes alert lifecycle records.</p>
+              <span class="badge">python -m app.alerting</span>
+            </article>
+
+            <article class="node owned">
+              <div class="node-title">
+                <div class="icon custom-icon" style="color: var(--storage)">
+                  <svg viewBox="0 0 32 32" aria-hidden="true">
+                    <path d="M4 20h5l3-9 5 15 3-8h8" />
+                    <path d="M5 6h22" />
+                    <path d="M5 26h22" />
+                  </svg>
+                </div>
+                <h3>Maintenance Model</h3>
+              </div>
+              <p>Builds telemetry baselines and publishes metric-level maintenance risk scores.</p>
+              <span class="badge">python -m app.maintenance_model</span>
+            </article>
+          </div>
+        </section>
+
+        <section class="lane">
+          <h2>API And Observability</h2>
+          <div class="stack">
+            <article class="node api">
+              <div class="node-title">
+                <div class="icon">
+                  <span class="fallback">API</span>
+                  <img src="https://cdn.simpleicons.org/fastapi/009688" alt="FastAPI logo" />
+                </div>
+                <h3>FastAPI</h3>
+              </div>
+              <p>Serves health, telemetry, alert, scenario-control, and Prometheus metrics endpoints.</p>
+              <span class="badge">app.api:app</span>
+            </article>
+
+            <article class="node observe">
+              <div class="node-title">
+                <div class="icon">
+                  <span class="fallback">PR</span>
+                  <img src="https://cdn.simpleicons.org/prometheus/E6522C" alt="Prometheus logo" />
+                </div>
+                <h3>Prometheus</h3>
+              </div>
+              <p>Scrapes FastAPI metrics from `/metrics` and feeds API monitoring dashboards.</p>
+              <span class="badge">deploy/prometheus/prometheus.yml</span>
+            </article>
+
+            <article class="node observe">
+              <div class="node-title">
+                <div class="icon">
+                  <span class="fallback">GF</span>
+                  <img src="https://cdn.simpleicons.org/grafana/F46800" alt="Grafana logo" />
+                </div>
+                <h3>Grafana</h3>
+              </div>
+              <p>Provides ClickHouse and Prometheus-backed dashboards for facility and API observability.</p>
+              <span class="badge">deploy/grafana/</span>
+            </article>
+          </div>
+        </section>
+
+        <section class="lane">
+          <h2>Operator Experience</h2>
+          <div class="stack">
+            <article class="node frontend">
+              <div class="node-title">
+                <div class="icon">
+                  <span class="fallback">RE</span>
+                  <img src="https://cdn.simpleicons.org/react/61DAFB" alt="React logo" />
+                </div>
+                <h3>React Operator Console</h3>
+              </div>
+              <p>Combines API-driven actions with embedded Grafana panels for operator workflows.</p>
+              <span class="badge">apps/operator-console</span>
+            </article>
+
+            <article class="node frontend">
+              <div class="node-title">
+                <div class="icon">
+                  <span class="fallback">VT</span>
+                  <img src="https://cdn.simpleicons.org/vite/646CFF" alt="Vite logo" />
+                </div>
+                <h3>Vite Build</h3>
+              </div>
+              <p>Builds the static frontend bundle with API and Grafana URLs embedded at build time.</p>
+              <span class="badge">npm run build</span>
+            </article>
+
+            <article class="node">
+              <div class="node-title">
+                <div class="icon">
+                  <span class="fallback">NX</span>
+                  <img src="https://cdn.simpleicons.org/nginx/009639" alt="nginx logo" />
+                </div>
+                <h3>nginx</h3>
+              </div>
+              <p>Serves the built operator console from the frontend container.</p>
+              <span class="badge">apps/operator-console/nginx.conf</span>
+            </article>
+          </div>
+        </section>
+
+        <section class="wide">
+          <h2>End-To-End Flow</h2>
+          <div class="flow-grid">
+            <div class="step"><strong>1. Simulate</strong><span>Generate facility metrics and scenario profiles.</span></div>
+            <div class="step"><strong>2. Publish</strong><span>Send metric payloads to MQTT topics.</span></div>
+            <div class="step"><strong>3. Ingest</strong><span>Normalize and enrich telemetry rows.</span></div>
+            <div class="step"><strong>4. Store</strong><span>Persist time-series data in ClickHouse.</span></div>
+            <div class="step"><strong>5. Analyze</strong><span>Evaluate alert rules and maintenance risk.</span></div>
+            <div class="step"><strong>6. Expose</strong><span>Serve APIs and Prometheus metrics.</span></div>
+            <div class="step"><strong>7. Observe</strong><span>Render Grafana dashboards.</span></div>
+            <div class="step"><strong>8. Operate</strong><span>Use React for scenarios and alert actions.</span></div>
+          </div>
+        </section>
+      </section>
+
+      <footer>
+        Platform logos are loaded from Simple Icons CDN by brand slug. Owned-service symbols are inline SVGs
+        designed specifically for this project. If the HTML is viewed offline, each platform icon falls back to
+        a short text mark.
+      </footer>
+    </main>
+  </body>
+</html>

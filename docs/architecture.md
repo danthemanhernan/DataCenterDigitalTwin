@@ -2,6 +2,8 @@
 
 DataCenterDigitalTwin models a small 2N data center supervisory-control environment. It is intentionally compact, but the service boundaries mirror a production monitoring stack: telemetry generation, message transport, ingestion, storage, API access, alerting, dashboards, and an operator console.
 
+For a visual version of this map with platform icons, open `docs/architecture-map.html` in a browser.
+
 ## System Context
 
 ```mermaid

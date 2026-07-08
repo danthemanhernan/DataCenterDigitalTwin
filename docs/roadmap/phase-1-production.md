@@ -14,29 +14,29 @@ Make DataCenterDigitalTwin look and operate like a professional engineering repo
 
 ## Python Tooling
 
-- [ ] Finish uv workspace migration
-- [ ] Configure Ruff
-- [ ] Configure formatting rules
-- [ ] Add type-checking plan
-- [ ] Add consistent dependency management
+- [x] Finish uv workspace migration
+- [x] Configure Ruff
+- [x] Configure formatting rules
+- [x] Add type-checking plan
+- [x] Add consistent dependency management
 
 ## Testing
 
-- [ ] Add pytest
-- [ ] Write meaningful unit tests
-- [ ] Add API route tests
-- [ ] Add simulator behavior tests
-- [ ] Add data model tests
-- [ ] Add smoke tests for local startup
+- [x] Add pytest
+- [x] Write meaningful unit tests
+- [x] Add API route tests
+- [x] Add simulator behavior tests
+- [x] Add data model tests
+- [x] Add smoke tests for local startup
 
 ## CI/CD Foundation
 
-- [ ] Add GitHub Actions CI
-- [ ] Run Ruff in CI
-- [ ] Run pytest in CI
-- [ ] Add dependency installation caching
-- [ ] Add basic build validation
-- [ ] Add status badges to README
+- [x] Add GitHub Actions CI
+- [x] Run Ruff in CI
+- [x] Run pytest in CI
+- [x] Add dependency installation caching
+- [x] Add basic build validation
+- [x] Add status badges to README
 
 ## Documentation
 

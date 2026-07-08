@@ -282,6 +282,175 @@
         line-height: 1.35;
       }
 
+      .pipeline {
+        margin-top: 18px;
+        padding: 16px;
+        border: 1px solid rgba(72, 214, 178, 0.24);
+        border-radius: 8px;
+        background:
+          linear-gradient(135deg, rgba(72, 214, 178, 0.08), transparent 45%),
+          rgba(255, 255, 255, 0.035);
+      }
+
+      .pipeline h3 {
+        margin: 0 0 6px;
+        font-size: 1rem;
+      }
+
+      .pipeline-intro {
+        color: var(--muted);
+        font-size: 0.9rem;
+        line-height: 1.45;
+        margin-bottom: 14px;
+      }
+
+      .pipeline-track {
+        display: grid;
+        grid-template-columns:
+          minmax(120px, 1fr) 32px minmax(120px, 1fr) 32px minmax(120px, 1fr) 32px
+          minmax(120px, 1fr) 32px minmax(120px, 1fr) 32px minmax(120px, 1fr);
+        align-items: center;
+        gap: 8px;
+      }
+
+      .pipe-card {
+        min-height: 118px;
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(18, 21, 29, 0.84);
+      }
+
+      .pipe-card.owned {
+        border-color: rgba(72, 214, 178, 0.52);
+      }
+
+      .pipe-card.platform {
+        border-color: rgba(109, 124, 255, 0.42);
+      }
+
+      .pipe-card.storage {
+        border-color: rgba(255, 210, 54, 0.55);
+      }
+
+      .pipe-card.api {
+        border-color: rgba(0, 168, 132, 0.52);
+      }
+
+      .pipe-card.observe {
+        border-color: rgba(244, 104, 0, 0.52);
+      }
+
+      .pipe-card.frontend {
+        border-color: rgba(97, 218, 251, 0.52);
+      }
+
+      .pipe-top {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        margin-bottom: 8px;
+      }
+
+      .pipe-icon {
+        display: grid;
+        place-items: center;
+        width: 34px;
+        height: 34px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.06);
+      }
+
+      .pipe-icon img {
+        width: 22px;
+        height: 22px;
+        object-fit: contain;
+      }
+
+      .pipe-icon svg {
+        width: 23px;
+        height: 23px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .pipe-card strong {
+        font-size: 0.92rem;
+      }
+
+      .pipe-card p {
+        color: var(--muted);
+        font-size: 0.78rem;
+        line-height: 1.35;
+      }
+
+      .pipe-arrow {
+        color: var(--flow);
+        text-align: center;
+        font-size: 1.55rem;
+      }
+
+      .pipeline-branches {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        margin-top: 12px;
+      }
+
+      .branch {
+        position: relative;
+        display: grid;
+        gap: 10px;
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(0, 0, 0, 0.16);
+      }
+
+      .branch-label {
+        color: var(--muted);
+        font-size: 0.76rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+      }
+
+      .branch-flow {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr) 24px minmax(0, 1fr);
+        align-items: stretch;
+        gap: 7px;
+      }
+
+      .mini-card {
+        min-height: 78px;
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.04);
+      }
+
+      .mini-card strong {
+        display: block;
+        margin-bottom: 4px;
+        font-size: 0.82rem;
+      }
+
+      .mini-card span {
+        color: var(--muted);
+        font-size: 0.74rem;
+        line-height: 1.25;
+      }
+
+      .mini-arrow {
+        display: grid;
+        place-items: center;
+        color: var(--flow);
+      }
+
       footer {
         margin-top: 18px;
         color: var(--muted);
@@ -305,6 +474,18 @@
         .flow-grid {
           grid-template-columns: repeat(2, minmax(0, 1fr));
         }
+
+        .pipeline-track {
+          grid-template-columns: 1fr;
+        }
+
+        .pipe-arrow {
+          transform: rotate(90deg);
+        }
+
+        .pipeline-branches {
+          grid-template-columns: 1fr;
+        }
       }
 
       @media (max-width: 700px) {
@@ -319,6 +500,14 @@
 
         .flow-grid {
           grid-template-columns: 1fr;
+        }
+
+        .branch-flow {
+          grid-template-columns: 1fr;
+        }
+
+        .mini-arrow {
+          transform: rotate(90deg);
         }
       }
     </style>
@@ -549,6 +738,117 @@
             <div class="step"><strong>6. Expose</strong><span>Serve APIs and Prometheus metrics.</span></div>
             <div class="step"><strong>7. Observe</strong><span>Render Grafana dashboards.</span></div>
             <div class="step"><strong>8. Operate</strong><span>Use React for scenarios and alert actions.</span></div>
+          </div>
+
+          <div class="pipeline" aria-label="Exact telemetry and operator pipeline">
+            <h3>Pipeline At A Glance</h3>
+            <p class="pipeline-intro">
+              Main telemetry moves left to right. Branches show where the stored data feeds alerts, maintenance
+              scoring, API metrics, dashboards, and operator actions.
+            </p>
+
+            <div class="pipeline-track">
+              <div class="pipe-card owned">
+                <div class="pipe-top">
+                  <div class="pipe-icon" style="color: var(--flow)">
+                    <svg viewBox="0 0 32 32" aria-hidden="true">
+                      <path d="M5 23c3-8 7-8 10 0s7 8 12 0" />
+                      <path d="M6 10h4m3 0h4m3 0h6" />
+                    </svg>
+                  </div>
+                  <strong>Simulator</strong>
+                </div>
+                <p>Creates rack, HVAC, UPS, and PDU points from normal or scenario profiles.</p>
+              </div>
+              <div class="pipe-arrow">→</div>
+              <div class="pipe-card platform">
+                <div class="pipe-top">
+                  <div class="pipe-icon">
+                    <img src="https://cdn.simpleicons.org/mqtt/660066" alt="MQTT logo" />
+                  </div>
+                  <strong>MQTT</strong>
+                </div>
+                <p>Transports telemetry on `dc/telemetry/#` through Mosquitto.</p>
+              </div>
+              <div class="pipe-arrow">→</div>
+              <div class="pipe-card owned">
+                <div class="pipe-top">
+                  <div class="pipe-icon" style="color: var(--flow)">
+                    <svg viewBox="0 0 32 32" aria-hidden="true">
+                      <path d="M6 6h20l-8 10v7l-4 3v-10z" />
+                      <path d="M9 22h7" />
+                    </svg>
+                  </div>
+                  <strong>Ingest</strong>
+                </div>
+                <p>Parses, normalizes, enriches, and batches rows before storage.</p>
+              </div>
+              <div class="pipe-arrow">→</div>
+              <div class="pipe-card storage">
+                <div class="pipe-top">
+                  <div class="pipe-icon">
+                    <img src="https://cdn.simpleicons.org/clickhouse/FFCC01" alt="ClickHouse logo" />
+                  </div>
+                  <strong>ClickHouse</strong>
+                </div>
+                <p>Stores telemetry, alert history, operator actions, and risk scores.</p>
+              </div>
+              <div class="pipe-arrow">→</div>
+              <div class="pipe-card api">
+                <div class="pipe-top">
+                  <div class="pipe-icon">
+                    <img src="https://cdn.simpleicons.org/fastapi/009688" alt="FastAPI logo" />
+                  </div>
+                  <strong>FastAPI</strong>
+                </div>
+                <p>Exposes summaries, telemetry, alerts, scenarios, and metrics.</p>
+              </div>
+              <div class="pipe-arrow">→</div>
+              <div class="pipe-card frontend">
+                <div class="pipe-top">
+                  <div class="pipe-icon">
+                    <img src="https://cdn.simpleicons.org/react/61DAFB" alt="React logo" />
+                  </div>
+                  <strong>Operator Console</strong>
+                </div>
+                <p>Shows state, triggers scenarios, and records alert actions.</p>
+              </div>
+            </div>
+
+            <div class="pipeline-branches">
+              <div class="branch">
+                <div class="branch-label">Alert branch</div>
+                <div class="branch-flow">
+                  <div class="mini-card"><strong>ClickHouse</strong><span>Recent telemetry windows</span></div>
+                  <div class="mini-arrow">→</div>
+                  <div class="mini-card"><strong>Alerting worker</strong><span>Rule evaluation</span></div>
+                  <div class="mini-arrow">→</div>
+                  <div class="mini-card"><strong>Alert tables</strong><span>Events and actions</span></div>
+                </div>
+              </div>
+
+              <div class="branch">
+                <div class="branch-label">Observability branch</div>
+                <div class="branch-flow">
+                  <div class="mini-card"><strong>FastAPI</strong><span>`/metrics` endpoint</span></div>
+                  <div class="mini-arrow">→</div>
+                  <div class="mini-card"><strong>Prometheus</strong><span>Metrics scrape</span></div>
+                  <div class="mini-arrow">→</div>
+                  <div class="mini-card"><strong>Grafana</strong><span>API dashboards</span></div>
+                </div>
+              </div>
+
+              <div class="branch">
+                <div class="branch-label">Dashboard branch</div>
+                <div class="branch-flow">
+                  <div class="mini-card"><strong>ClickHouse</strong><span>Facility telemetry</span></div>
+                  <div class="mini-arrow">→</div>
+                  <div class="mini-card"><strong>Grafana</strong><span>Trend panels</span></div>
+                  <div class="mini-arrow">→</div>
+                  <div class="mini-card"><strong>React</strong><span>Embedded panels</span></div>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
       </section>

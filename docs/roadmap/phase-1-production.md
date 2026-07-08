@@ -40,12 +40,12 @@ Make DataCenterDigitalTwin look and operate like a professional engineering repo
 
 ## Documentation
 
-- [ ] Improve README
-- [ ] Add architecture overview
-- [ ] Add local development guide
-- [ ] Add environment variable documentation
-- [ ] Add sample screenshots
-- [ ] Add roadmap link to README
+- [x] Improve README
+- [x] Add architecture overview
+- [x] Add local development guide
+- [x] Add environment variable documentation
+- [x] Add sample screenshots
+- [x] Add roadmap link to README
 
 ## Release Hygiene
 

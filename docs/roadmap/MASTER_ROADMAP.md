@@ -16,7 +16,7 @@ DataCenterDigitalTwin is intended to grow from a local telemetry simulator into 
 Prepare the repository with clean structure, tests, linting, CI, documentation, and a professional engineering workflow.
 
 ### Phase 2 — Grid-Aware Data Center Simulation
-Expand the simulator into a realistic AI data center model with utility pricing, electrical constraints, GPU loads, liquid cooling, PUE, alerting, ClickHouse telemetry, Grafana, React, and FastAPI controls.
+Expand the simulator into a realistic AI data center model with utility pricing, electrical constraints, GPU loads, liquid cooling, PUE, alerting, and operator controls. Introduce a hybrid data architecture that keeps high-volume process telemetry in ClickHouse while persisting operational, maintenance, alarm, command, and model-inference events in a separate append-only event store.
 
 ### Phase 3 — Kubernetes Learning and Deployment
 Use the project as the application for learning Kubernetes, Helm, kind, k3d, CI-based deployment testing, and observability.
@@ -29,4 +29,4 @@ Run the system on a cheap always-on K3s home lab using a mini PC, persistent sto
 
 ## Long-Term Goal
 
-Build a portfolio-grade platform demonstrating controls engineering, electrical and cooling simulation, data engineering, Kubernetes, CI/CD, observability, distributed systems, and AI-assisted data center operations.
+Build a portfolio-grade platform demonstrating controls engineering, electrical and cooling simulation, data engineering, event-driven architecture, Kubernetes, CI/CD, observability, distributed systems, and AI-assisted data center operations.

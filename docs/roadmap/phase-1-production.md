@@ -49,11 +49,11 @@ Make DataCenterDigitalTwin look and operate like a professional engineering repo
 
 ## Release Hygiene
 
-- [ ] Create initial tagged release
-- [ ] Add changelog
-- [ ] Add license review
-- [ ] Add contribution notes
-- [ ] Add known limitations section
+- [x] Create initial tagged release
+- [x] Add changelog
+- [x] Add license review
+- [x] Add contribution notes
+- [x] Add known limitations section
 
 ## Deliverable
 

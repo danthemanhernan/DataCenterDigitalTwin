@@ -33,7 +33,11 @@ Open:
 - [Repository structure](docs/repository-structure.md)
 - [Python tooling](docs/python-tooling.md)
 - [CI/CD foundation](docs/ci-cd.md)
+- [Release hygiene](docs/release-hygiene.md)
+- [Known limitations](docs/known-limitations.md)
 - [Screenshots](docs/screenshots.md)
+- [Changelog](CHANGELOG.md)
+- [Contributing](CONTRIBUTING.md)
 
 The repo is organized as a deployable monorepo:
 
@@ -45,6 +49,8 @@ The repo is organized as a deployable monorepo:
 - `docs/repository-structure.md`: module and ownership boundaries for the monorepo.
 - `docs/python-tooling.md`: uv, Ruff, dependency, and type-checking plan for the Python backend.
 - `docs/ci-cd.md`: GitHub Actions workflow explanation and local parity commands.
+- `docs/release-hygiene.md`: release tags, GitHub Releases, GHCR concepts, and license review.
+- `docs/known-limitations.md`: current runtime, security, data, observability, and deployment constraints.
 - `docs/architecture.md`: service boundaries and data flow.
 - `docs/architecture-map.html`: visual architecture map with platform icons and owned-service symbols.
 - `docs/local-development.md`: day-to-day development commands.

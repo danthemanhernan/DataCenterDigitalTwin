@@ -8,5 +8,9 @@
   "ups-1": "electrical-room",
   "ups-2": "electrical-room",
   "pdu-1": "electrical-room",
-  "pdu-2": "electrical-room"
+  "pdu-2": "electrical-room",
+  "utility-grid": "utility-interconnect",
+  "gpu-cluster-a": "ai-compute-hall",
+  "chilled-water-loop": "cooling-plant",
+  "facility": "site-kpi"
 }

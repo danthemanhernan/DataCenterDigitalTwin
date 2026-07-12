@@ -27,3 +27,4 @@ Available payloads:
 - `simulator-scenarios/power-outage.json`
 - `simulator-scenarios/cooling-degradation.json`
 - `simulator-scenarios/load-transfer.json`
+- `simulator-scenarios/demand-response.json`

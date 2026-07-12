@@ -145,7 +145,9 @@ uv run --package dc-digital-twin python -m app.maintenance_model --once --fixtur
 - API: `http://localhost:8000/docs`
 - API metrics: `http://localhost:8000/metrics`
 - Simulator scenario state: `http://localhost:8000/simulator/scenario`
+- Simulator scenario reset: `DELETE http://localhost:8000/simulator/scenario`
 - Simulator scenario catalog: `http://localhost:8000/simulator/scenarios`
+- Demand-response scenario trigger: `POST http://localhost:8000/simulator/scenarios/demand-response`
 - Alert rules: `http://localhost:8000/alerts/rules`
 - Recent alert events: `http://localhost:8000/alerts/recent`
 - Alert state: `http://localhost:8000/alerts/{alert_key}/state`
@@ -176,6 +178,7 @@ For shareable deployments, publish immutable tags to a registry such as GitHub C
 - Trend dashboards now include threshold lines that match the warning and critical alarm rules in `app/logic.py`, and the asset trend dashboard exposes Grafana variables for rack, HVAC, and power asset selection.
 - Telemetry trend panels split one query into separate asset series with Grafana transforms, and they use peak-oriented aggregation (`max`, or `min` for UPS battery) to make alarm excursions easier to spot.
 - Scenario profiles now progress through staged behavior over their duration instead of jumping directly to a single failure snapshot, making transfer events, recovery ramps, and compensating equipment behavior easier to observe.
+- The demand-response profile adds utility price, utility capacity, GPU load, GPU power, load-shed percentage, chilled-water loop, PUE, and power-cost telemetry while reusing the existing ClickHouse telemetry table.
 - Default Grafana login comes from `.env`, and the provisioned home dashboard is `Mini DC Operations Overview`.
 - Grafana runs with anonymous viewer access and `allow_embedding` enabled so the React console can embed the most critical panels directly in the operator workflow.
 - FastAPI exposes Prometheus-style metrics at `/metrics`, and Prometheus scrapes the containerized API from `api:8000` for the API monitoring dashboard.

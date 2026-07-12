@@ -14,5 +14,15 @@
   ["power", "ups-2", "ups_load_pct"],
   ["power", "ups-2", "ups_battery_pct"],
   ["power", "pdu-1", "pdu_branch_load_pct"],
-  ["power", "pdu-2", "pdu_branch_load_pct"]
+  ["power", "pdu-2", "pdu_branch_load_pct"],
+  ["utility", "utility-grid", "utility_price_usd_mwh"],
+  ["utility", "utility-grid", "utility_capacity_mw"],
+  ["compute", "gpu-cluster-a", "gpu_load_pct"],
+  ["compute", "gpu-cluster-a", "gpu_power_kw"],
+  ["compute", "gpu-cluster-a", "shed_load_pct"],
+  ["cooling", "chilled-water-loop", "chilled_water_supply_temp_c"],
+  ["cooling", "chilled-water-loop", "chilled_water_return_temp_c"],
+  ["cooling", "chilled-water-loop", "cooling_power_kw"],
+  ["kpi", "facility", "pue"],
+  ["kpi", "facility", "power_cost_usd_hr"]
 ]

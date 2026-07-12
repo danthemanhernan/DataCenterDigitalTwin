@@ -1,5 +1,6 @@
 {
   "power_outage": "Utility power sags, UPS demand ramps up, critical loads ride through a brief transfer dip, then the plant stabilizes on backup power.",
   "cooling_degradation": "One cooling train loses capacity, the standby unit ramps up, room temperatures drift higher, and IT load starts to warm unevenly.",
-  "load_transfer": "A planned electrical transfer shifts load between redundant paths with a brief inrush on the receiving side before settling into a new steady state."
+  "load_transfer": "A planned electrical transfer shifts load between redundant paths with a brief inrush on the receiving side before settling into a new steady state.",
+  "demand_response": "A utility price spike triggers policy-based GPU load shedding, lowers compute power draw, and lets the cooling loop recover before workloads ramp back toward normal."
 }

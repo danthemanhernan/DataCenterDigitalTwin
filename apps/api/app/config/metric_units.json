@@ -6,5 +6,15 @@
   "hvac_fan_speed_pct": "%",
   "ups_load_pct": "%",
   "ups_battery_pct": "%",
-  "pdu_branch_load_pct": "%"
+  "pdu_branch_load_pct": "%",
+  "utility_price_usd_mwh": "USD/MWh",
+  "utility_capacity_mw": "MW",
+  "gpu_load_pct": "%",
+  "gpu_power_kw": "kW",
+  "shed_load_pct": "%",
+  "chilled_water_supply_temp_c": "C",
+  "chilled_water_return_temp_c": "C",
+  "cooling_power_kw": "kW",
+  "pue": "ratio",
+  "power_cost_usd_hr": "USD/hr"
 }

@@ -8,6 +8,7 @@ from paho.mqtt.client import CallbackAPIVersion
 
 from .logic import (
     generate_cooling_degradation_points,
+    generate_demand_response_points,
     generate_load_transfer_points,
     generate_power_outage_points,
     generate_simulated_points,
@@ -37,6 +38,7 @@ def main() -> None:
             "power_outage": generate_power_outage_points,
             "cooling_degradation": generate_cooling_degradation_points,
             "load_transfer": generate_load_transfer_points,
+            "demand_response": generate_demand_response_points,
         }
         generator = scenario_generators.get(scenario_name)
         points = generator(scenario) if generator else generate_simulated_points()

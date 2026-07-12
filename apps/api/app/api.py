@@ -24,6 +24,7 @@ from .alerting import (
 )
 from .logic import (
     SCENARIOS,
+    clear_simulator_control,
     get_active_simulator_scenario,
     serialize_timestamp,
     trigger_scenario,
@@ -83,6 +84,12 @@ class PowerOutageRequest(BaseModel):
     duration_seconds: int = Field(default=30, ge=5, le=600)
 
 
+class DemandResponseRequest(PowerOutageRequest):
+    price_spike_usd_mwh: float = Field(default=650.0, ge=0.0, le=5000.0)
+    shed_target_pct: float = Field(default=35.0, ge=0.0, le=100.0)
+    recovery_target_minutes: int = Field(default=15, ge=1, le=240)
+
+
 class AlertActionRequest(BaseModel):
     actor: str = Field(default="api")
     note: str = Field(default="", max_length=500)
@@ -106,6 +113,7 @@ def serialize_scenario_state(scenario: dict[str, Any] | None) -> dict[str, Any]:
         "activated_at": serialize_timestamp(scenario["activated_at"]),
         "expires_at": serialize_timestamp(scenario["expires_at"]),
         "duration_seconds": scenario["duration_seconds"],
+        "parameters": scenario.get("parameters", {}),
     }
 
 
@@ -239,6 +247,12 @@ def simulator_scenario() -> dict[str, Any]:
     return serialize_scenario_state(get_active_simulator_scenario())
 
 
+@app.delete("/simulator/scenario")
+def reset_simulator_scenario() -> dict[str, Any]:
+    clear_simulator_control()
+    return serialize_scenario_state(None)
+
+
 @app.get("/simulator/scenarios")
 def list_simulator_scenarios() -> dict[str, Any]:
     return {"scenarios": SCENARIOS}
@@ -259,6 +273,20 @@ def trigger_cooling_degradation_scenario(payload: PowerOutageRequest) -> dict[st
 @app.post("/simulator/scenarios/load-transfer")
 def trigger_load_transfer_scenario(payload: PowerOutageRequest) -> dict[str, Any]:
     scenario = trigger_scenario("load_transfer", duration_seconds=payload.duration_seconds)
+    return serialize_scenario_state(scenario)
+
+
+@app.post("/simulator/scenarios/demand-response")
+def trigger_demand_response_scenario(payload: DemandResponseRequest) -> dict[str, Any]:
+    scenario = trigger_scenario(
+        "demand_response",
+        duration_seconds=payload.duration_seconds,
+        parameters={
+            "price_spike_usd_mwh": payload.price_spike_usd_mwh,
+            "shed_target_pct": payload.shed_target_pct,
+            "recovery_target_minutes": payload.recovery_target_minutes,
+        },
+    )
     return serialize_scenario_state(scenario)
 
 

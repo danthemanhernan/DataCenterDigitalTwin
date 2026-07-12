@@ -39,5 +39,56 @@
     "warn": 75.0,
     "crit": 90.0,
     "message": "PDU branch nearing limit"
+  },
+  "utility_price_usd_mwh": {
+    "warn": 400.0,
+    "crit": 700.0,
+    "message": "Utility price spike active"
+  },
+  "utility_capacity_mw": {
+    "warn": 8.0,
+    "crit": 6.5,
+    "message": "Utility capacity constrained",
+    "inverse": true
+  },
+  "gpu_load_pct": {
+    "warn": 90.0,
+    "crit": 97.0,
+    "message": "GPU cluster near maximum load"
+  },
+  "gpu_power_kw": {
+    "warn": 1250.0,
+    "crit": 1500.0,
+    "message": "GPU cluster power draw high"
+  },
+  "shed_load_pct": {
+    "warn": 20.0,
+    "crit": 50.0,
+    "message": "Demand-response load shedding active"
+  },
+  "chilled_water_supply_temp_c": {
+    "warn": 18.0,
+    "crit": 21.0,
+    "message": "Chilled-water supply temperature high"
+  },
+  "chilled_water_return_temp_c": {
+    "warn": 26.0,
+    "crit": 30.0,
+    "message": "Chilled-water return temperature high"
+  },
+  "cooling_power_kw": {
+    "warn": 520.0,
+    "crit": 680.0,
+    "message": "Cooling power draw high"
+  },
+  "pue": {
+    "warn": 1.55,
+    "crit": 1.75,
+    "message": "Facility PUE elevated"
+  },
+  "power_cost_usd_hr": {
+    "warn": 500.0,
+    "crit": 900.0,
+    "message": "Power cost rate high"
   }
 }

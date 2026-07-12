@@ -1,0 +1,6 @@
+{
+  "duration_seconds": 90,
+  "price_spike_usd_mwh": 725.0,
+  "shed_target_pct": 40.0,
+  "recovery_target_minutes": 20
+}

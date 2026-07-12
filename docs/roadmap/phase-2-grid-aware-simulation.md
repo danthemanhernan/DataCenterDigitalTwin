@@ -10,15 +10,15 @@ Transform the project from a telemetry simulator into a realistic AI data center
 
 Implement one end-to-end demand-response scenario in `DataCenterDigitalTwin`:
 
-- [ ] Simulate a utility power price spike
-- [ ] Trigger GPU load shedding based on configurable demand-response policy
-- [ ] Model the cooling loop response after compute load reduction
-- [ ] Store power, GPU, cooling, KPI, and alert telemetry in ClickHouse
+- [x] Simulate a utility power price spike
+- [x] Trigger GPU load shedding based on configurable demand-response policy
+- [x] Model the cooling loop response after compute load reduction
+- [x] Store power, GPU, cooling, KPI, and alert telemetry in ClickHouse
 - [ ] Emit durable domain events for the price spike, policy decision, command, equipment response, alert lifecycle, and recovery
 - [ ] Correlate ClickHouse telemetry windows with event-store records using shared asset, scenario, correlation, and causation identifiers
 - [ ] Display the event timeline in Grafana
 - [ ] Surface the active alert and recovery status in the React operator console
-- [ ] Expose the scenario trigger and reset controls through FastAPI
+- [x] Expose the scenario trigger and reset controls through FastAPI
 
 **Scenario flow:** power price spike → domain event → GPU load-shed command → equipment response → ClickHouse telemetry + event-store history → Grafana/operator alert and recovery timeline.
 
@@ -26,8 +26,8 @@ Implement one end-to-end demand-response scenario in `DataCenterDigitalTwin`:
 
 ### Utility Power
 
-- [ ] Simulate dynamic utility power pricing
-- [ ] Model varying utility capacity limits
+- [x] Simulate dynamic utility power pricing
+- [x] Model varying utility capacity limits
 - [ ] Simulate brownouts and utility disturbances
 - [ ] Support configurable utility rate schedules
 - [ ] Model time-of-use pricing

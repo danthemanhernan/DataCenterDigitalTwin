@@ -4,7 +4,15 @@ from datetime import UTC, datetime
 
 import pytest
 
-from app.logic import determine_alarm, interpolate_profile, normalize_message, parse_timestamp, scenario_progress
+from app.logic import (
+    determine_alarm,
+    generate_demand_response_points,
+    generate_power_outage_points,
+    interpolate_profile,
+    normalize_message,
+    parse_timestamp,
+    scenario_progress,
+)
 
 
 def test_parse_timestamp_with_naive_datetime_assigns_utc():
@@ -44,6 +52,13 @@ def test_determine_alarm_for_inverse_metric():
     assert determine_alarm("ups_battery_pct", 35.0) == ("normal", "")
     assert determine_alarm("ups_battery_pct", 30.0) == ("warning", "UPS battery low")
     assert determine_alarm("ups_battery_pct", 20.0) == ("critical", "UPS battery low")
+
+
+def test_determine_alarm_for_demand_response_metric():
+    assert determine_alarm("utility_price_usd_mwh", 399.9) == ("normal", "")
+    assert determine_alarm("utility_price_usd_mwh", 400.0) == ("warning", "Utility price spike active")
+    assert determine_alarm("utility_price_usd_mwh", 700.0) == ("critical", "Utility price spike active")
+    assert determine_alarm("shed_load_pct", 20.0) == ("warning", "Demand-response load shedding active")
 
 
 def test_scenario_progress_returns_zero_when_no_scenario():
@@ -93,6 +108,36 @@ def test_interpolate_profile_returns_last_point_after_end():
     points = [(0.0, 10.0), (0.5, 20.0), (1.0, 40.0)]
 
     assert interpolate_profile(points, 1.5) == 40.0
+
+
+def test_power_outage_points_include_new_baseline_categories():
+    scenario = {
+        "activated_at": "2026-01-01T12:00:00Z",
+        "expires_at": "2026-01-01T12:01:00Z",
+    }
+
+    points = generate_power_outage_points(scenario)
+    point_keys = {(point["asset_type"], point["asset_id"], point["metric"]) for point in points}
+
+    assert ("utility", "utility-grid", "utility_price_usd_mwh") in point_keys
+    assert ("compute", "gpu-cluster-a", "gpu_load_pct") in point_keys
+    assert ("kpi", "facility", "pue") in point_keys
+
+
+def test_demand_response_points_show_load_shedding_mid_event(monkeypatch):
+    now = datetime(2026, 1, 1, 12, 0, 30, tzinfo=UTC)
+    scenario = {
+        "activated_at": "2026-01-01T12:00:00Z",
+        "expires_at": "2026-01-01T12:01:00Z",
+    }
+    monkeypatch.setattr("app.logic.utc_now", lambda: now)
+
+    points = generate_demand_response_points(scenario)
+    by_metric = {point["metric"]: point for point in points}
+
+    assert by_metric["utility_price_usd_mwh"]["value"] >= 700.0
+    assert by_metric["shed_load_pct"]["value"] >= 35.0
+    assert by_metric["gpu_power_kw"]["value"] < 800.0
 
 
 def test_normalize_message_populates_expected_fields():

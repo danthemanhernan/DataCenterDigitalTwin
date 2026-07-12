@@ -89,7 +89,11 @@ def clear_simulator_control() -> None:
         SIMULATOR_CONTROL_PATH.unlink()
 
 
-def trigger_scenario(scenario: str, duration_seconds: int = 30) -> dict[str, Any]:
+def trigger_scenario(
+    scenario: str,
+    duration_seconds: int = 30,
+    parameters: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     if scenario not in SCENARIOS:
         raise ValueError(f"Unsupported scenario: {scenario}")
 
@@ -100,6 +104,7 @@ def trigger_scenario(scenario: str, duration_seconds: int = 30) -> dict[str, Any
         "activated_at": serialize_timestamp(activated_at),
         "expires_at": serialize_timestamp(datetime.fromtimestamp(expires_at, tz=UTC)),
         "duration_seconds": max(duration_seconds, 1),
+        "parameters": parameters or {},
     }
     SIMULATOR_CONTROL_PATH.parent.mkdir(parents=True, exist_ok=True)
     SIMULATOR_CONTROL_PATH.write_text(json.dumps(command, indent=2))
@@ -231,16 +236,14 @@ def generate_profiled_points(scenario_name: str, scenario: dict[str, Any] | None
     ts = utc_now()
     progress = scenario_progress(scenario, ts)
     profile = SCENARIO_PROFILES[scenario_name]
-    return [
-        build_point(
-            asset_type,
-            asset_id,
-            metric,
-            interpolate_profile(profile[(asset_type, asset_id, metric)], progress),
-            ts,
-        )
-        for asset_type, asset_id, metric in POINT_ORDER
-    ]
+    points = []
+    for asset_type, asset_id, metric in POINT_ORDER:
+        point_key = (asset_type, asset_id, metric)
+        values = profile.get(point_key)
+        value = interpolate_profile(values, progress) if values else choice(BASELINE_CHOICES[point_key])
+        points.append(build_point(asset_type, asset_id, metric, value, ts))
+
+    return points
 
 
 def generate_power_outage_points(
@@ -259,3 +262,9 @@ def generate_load_transfer_points(
     scenario: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     return generate_profiled_points("load_transfer", scenario)
+
+
+def generate_demand_response_points(
+    scenario: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    return generate_profiled_points("demand_response", scenario)

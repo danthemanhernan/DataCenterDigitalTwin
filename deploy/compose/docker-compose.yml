@@ -215,6 +215,11 @@ services:
       GF_SECURITY_ALLOW_EMBEDDING: "true"
       GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/dc-operations-overview.json
       GF_INSTALL_PLUGINS: grafana-clickhouse-datasource,grafana-clock-panel
+      EVENT_STORE_HOST: postgres
+      EVENT_STORE_PORT: 5432
+      EVENT_STORE_USER: ${EVENT_STORE_USER}
+      EVENT_STORE_PASSWORD: ${EVENT_STORE_PASSWORD}
+      EVENT_STORE_DATABASE: ${EVENT_STORE_DATABASE}
     volumes:
       - grafana_data:/var/lib/grafana
       - ../grafana/provisioning:/etc/grafana/provisioning:ro

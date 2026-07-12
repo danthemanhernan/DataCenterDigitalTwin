@@ -12,6 +12,22 @@
         "iconColor": "rgba(0, 211, 255, 1)",
         "name": "Annotations & Alerts",
         "type": "dashboard"
+      },
+      {
+        "datasource": {
+          "type": "postgres",
+          "uid": "postgres-events"
+        },
+        "enable": true,
+        "hide": false,
+        "iconColor": "rgba(255, 180, 90, 1)",
+        "name": "Domain Events",
+        "target": {
+          "format": "table",
+          "rawSql": "SELECT\n  occurred_at AS time,\n  event_type || COALESCE(' - ' || asset_id, '') AS text,\n  ARRAY[\n    event_type,\n    COALESCE(asset_type, 'scenario'),\n    COALESCE(scenario_id, 'no-scenario')\n  ] AS tags\nFROM event_store.events\nWHERE $__timeFilter(occurred_at)\nORDER BY occurred_at",
+          "refId": "DomainEventsAnnotations"
+        },
+        "type": "query"
       }
     ]
   },

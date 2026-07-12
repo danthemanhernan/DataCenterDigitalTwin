@@ -737,7 +737,8 @@ button {
 .scada-hero,
 .scada-board,
 .process-strip,
-.history-page {
+.history-page,
+.events-page {
   margin-top: 20px;
 }
 
@@ -1098,7 +1099,8 @@ button {
   background: linear-gradient(90deg, rgba(255, 159, 90, 0.1), rgba(255, 159, 90, 0.72));
 }
 
-.history-page {
+.history-page,
+.events-page {
   padding: 22px;
   border-radius: 24px;
   background: rgba(18, 20, 24, 0.84);
@@ -1106,7 +1108,8 @@ button {
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.32);
 }
 
-.history-page h2 {
+.history-page h2,
+.events-page h2 {
   margin: 0;
   font-size: clamp(1.8rem, 3vw, 3.4rem);
   letter-spacing: -0.04em;
@@ -1254,6 +1257,110 @@ button {
   line-height: 1.5;
 }
 
+.event-groups {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.event-group {
+  overflow: hidden;
+  border-radius: 18px;
+  background: rgba(8, 10, 13, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.event-group-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.event-group-header span {
+  color: #9fa7b4;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.event-group-header strong {
+  display: block;
+  margin-top: 4px;
+  font-family: "SFMono-Regular", Consolas, monospace;
+}
+
+.event-group-header small {
+  color: #a7b0be;
+}
+
+.event-timeline {
+  display: grid;
+  padding: 10px;
+}
+
+.event-row {
+  display: grid;
+  grid-template-columns: 18px minmax(90px, 0.22fr) minmax(180px, 0.45fr) minmax(180px, 0.55fr) minmax(240px, 1fr);
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  min-height: 54px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  color: #e9edf4;
+  text-align: left;
+}
+
+.event-row:hover {
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.event-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #ffb45a;
+  box-shadow: 0 0 0 5px rgba(255, 180, 90, 0.12);
+}
+
+.event-time {
+  color: #aeb8c7;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 0.82rem;
+}
+
+.event-row small {
+  color: #9fa8b6;
+}
+
+.event-row em {
+  overflow: hidden;
+  color: #cdd5e0;
+  font-style: normal;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.event-detail-modal {
+  width: min(100%, 44rem);
+}
+
+.event-payload {
+  max-height: 280px;
+  overflow: auto;
+  margin: 16px 0 0;
+  padding: 14px;
+  border-radius: 14px;
+  background: rgba(4, 5, 7, 0.7);
+  color: #d8e2ef;
+  font-size: 0.84rem;
+}
+
 @media (max-width: 1180px) {
   .layout-grid,
   .hero,
@@ -1276,12 +1383,17 @@ button {
   .equipment-row.four-up,
   .rack-row,
   .process-tile,
-  .process-readout {
+  .process-readout,
+  .event-row {
     grid-template-columns: 1fr;
   }
 
   .flow-lane {
     min-height: 78px;
+  }
+
+  .event-dot {
+    display: none;
   }
 }
 

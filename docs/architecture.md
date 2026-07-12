@@ -107,6 +107,8 @@ The same real-world occurrence can be represented in both stores at different le
 7. Predictive-maintenance training joins ClickHouse feature windows with event-store labels such as maintenance actions, interventions, recoveries, and failures.
 8. Later, a transactional outbox can publish committed events to NATS JetStream for durable asynchronous processing without making the broker the source of truth.
 
+The current Phase 2 UI integration is intentionally direct: FastAPI exposes recent event envelopes to the React console, and Grafana reads the PostgreSQL event store as a datasource for dashboard annotations. Projected read models can replace or enrich these direct queries later.
+
 ## Canonical Event Envelope
 
 Every domain event should use a common envelope independent of the storage platform:
@@ -197,7 +199,8 @@ The demand-response scenario now emits the first API-side event sequence into Po
 
 - FastAPI exposes Prometheus metrics at `/metrics`.
 - Prometheus scrapes the API service inside the Compose network.
-- Grafana provisions both ClickHouse and Prometheus datasources.
+- Grafana provisions ClickHouse, Prometheus, and PostgreSQL event-store datasources.
+- Telemetry dashboards include query-backed domain-event annotations from PostgreSQL.
 - Grafana dashboards are checked in as JSON so dashboard changes can be reviewed.
 - Phase 2 should add event append latency, append failures, optimistic-concurrency conflicts, projector lag, projector retries, dead-letter counts, and telemetry-to-event detection metrics.
 

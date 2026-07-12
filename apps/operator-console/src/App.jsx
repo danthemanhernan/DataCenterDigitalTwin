@@ -24,6 +24,17 @@ const SCENARIOS = [
     durationSeconds: 45,
     description: "Shift electrical loading across the redundant power paths without a total outage.",
   },
+  {
+    key: "demand-response",
+    title: "Demand Response",
+    durationSeconds: 90,
+    description: "Spike utility pricing, shed GPU load, and watch cooling recover against the event timeline.",
+    payload: {
+      price_spike_usd_mwh: 725,
+      shed_target_pct: 40,
+      recovery_target_minutes: 20,
+    },
+  },
 ];
 
 const EMBEDS = [
@@ -168,6 +179,14 @@ const SORT_LABELS = {
   duration_seconds: "Duration",
 };
 
+const EVENT_TYPE_LABELS = {
+  ScenarioStarted: "Scenario started",
+  UtilityPriceSpikeDetected: "Price spike",
+  DemandResponsePolicyEvaluated: "Policy evaluated",
+  LoadSheddingRequested: "Load shedding",
+  EquipmentCommandIssued: "Command issued",
+};
+
 function getStatusTone(alert) {
   if (alert.shelved) return "shelved";
   if (alert.muted) return "muted";
@@ -234,6 +253,23 @@ function formatDuration(seconds) {
   if (days > 0) return `${days}d ${hours}h`;
   if (hours > 0) return `${hours}h ${minutes}m`;
   return `${minutes}m`;
+}
+
+function eventLabel(eventType) {
+  return EVENT_TYPE_LABELS[eventType] || eventType;
+}
+
+function shortId(value) {
+  if (!value) return "--";
+  return String(value).slice(0, 8);
+}
+
+function payloadSummary(payload = {}) {
+  const entries = Object.entries(payload)
+    .filter(([, value]) => value !== null && value !== undefined && typeof value !== "object")
+    .slice(0, 4);
+  if (entries.length === 0) return "No scalar payload fields";
+  return entries.map(([key, value]) => `${key}: ${value}`).join(" / ");
 }
 
 function severityRank(severity) {
@@ -746,10 +782,162 @@ function AlarmHistory({ alerts, lastUpdatedAt }) {
   );
 }
 
+function EventTimeline({ events, lastUpdatedAt }) {
+  const [eventSearch, setEventSearch] = useState("");
+  const [eventType, setEventType] = useState("all");
+  const [selectedEvent, setSelectedEvent] = useState(null);
+
+  const eventTypes = useMemo(
+    () => Array.from(new Set(events.map((event) => event.event_type))).sort(),
+    [events]
+  );
+  const visibleEvents = useMemo(() => {
+    const search = eventSearch.trim().toLowerCase();
+    return events.filter((event) => {
+      const matchesType = eventType === "all" || event.event_type === eventType;
+      const searchable = [
+        event.event_type,
+        event.asset_id,
+        event.asset_type,
+        event.scenario_id,
+        event.correlation_id,
+        event.source,
+        JSON.stringify(event.payload || {}),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return matchesType && (!search || searchable.includes(search));
+    });
+  }, [eventSearch, eventType, events]);
+
+  const eventsByCorrelation = useMemo(() => {
+    const grouped = new Map();
+    for (const event of visibleEvents) {
+      const key = event.correlation_id || "uncorrelated";
+      const group = grouped.get(key) || [];
+      group.push(event);
+      grouped.set(key, group);
+    }
+    return Array.from(grouped.entries())
+      .map(([correlationId, rows]) => ({
+        correlationId,
+        rows: rows.sort((left, right) => new Date(left.occurred_at) - new Date(right.occurred_at)),
+      }))
+      .sort((left, right) => {
+        const leftTime = new Date(left.rows[0]?.occurred_at || 0).getTime();
+        const rightTime = new Date(right.rows[0]?.occurred_at || 0).getTime();
+        return rightTime - leftTime;
+      });
+  }, [visibleEvents]);
+
+  return (
+    <section className="events-page">
+      <div className="card-header">
+        <div>
+          <p className="eyebrow">Domain Events</p>
+          <h2>Operational timeline from the PostgreSQL event store.</h2>
+          <p>Review scenario decisions, commands, and correlation chains alongside the telemetry dashboards.</p>
+        </div>
+        <div className="history-count">
+          <span>Events</span>
+          <strong>{visibleEvents.length}</strong>
+        </div>
+        <div className="history-live-card">
+          <span>Live refresh</span>
+          <strong>5s</strong>
+          <small>Updated {formatTime(lastUpdatedAt)}</small>
+        </div>
+      </div>
+
+      <div className="history-toolbar">
+        <label className="field field-wide">
+          <span>Search</span>
+          <input
+            value={eventSearch}
+            onChange={(event) => setEventSearch(event.target.value)}
+            placeholder="event type, asset, scenario, correlation"
+          />
+        </label>
+        <label className="field">
+          <span>Event type</span>
+          <select value={eventType} onChange={(event) => setEventType(event.target.value)}>
+            <option value="all">All</option>
+            {eventTypes.map((type) => (
+              <option value={type} key={type}>{eventLabel(type)}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      {visibleEvents.length === 0 ? (
+        <div className="empty-state">No domain events match the current filters.</div>
+      ) : (
+        <div className="event-groups">
+          {eventsByCorrelation.map((group) => (
+            <article className="event-group" key={group.correlationId}>
+              <div className="event-group-header">
+                <div>
+                  <span>Correlation</span>
+                  <strong>{shortId(group.correlationId)}</strong>
+                </div>
+                <small>{group.rows.length} event{group.rows.length === 1 ? "" : "s"}</small>
+              </div>
+              <div className="event-timeline">
+                {group.rows.map((event) => (
+                  <button
+                    className="event-row"
+                    key={event.event_id}
+                    onClick={() => setSelectedEvent(event)}
+                  >
+                    <span className="event-dot" />
+                    <span className="event-time">{formatTime(event.occurred_at)}</span>
+                    <strong>{eventLabel(event.event_type)}</strong>
+                    <small>{event.asset_id || event.scenario_id || event.stream_id}</small>
+                    <em>{payloadSummary(event.payload)}</em>
+                  </button>
+                ))}
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+
+      {selectedEvent ? (
+        <div className="modal-backdrop" role="presentation">
+          <section className="action-modal event-detail-modal" role="dialog" aria-modal="true" aria-labelledby="event-modal-title">
+            <div className="card-header">
+              <div>
+                <h2 id="event-modal-title">{eventLabel(selectedEvent.event_type)}</h2>
+                <p>{selectedEvent.stream_id} v{selectedEvent.stream_version}</p>
+              </div>
+            </div>
+            <dl className="ack-detail-list">
+              <div><dt>Occurred</dt><dd>{formatDateTime(selectedEvent.occurred_at)}</dd></div>
+              <div><dt>Source</dt><dd>{selectedEvent.source}</dd></div>
+              <div><dt>Asset</dt><dd>{selectedEvent.asset_id || "none"}</dd></div>
+              <div><dt>Scenario</dt><dd>{selectedEvent.scenario_id || "none"}</dd></div>
+              <div><dt>Correlation</dt><dd>{selectedEvent.correlation_id}</dd></div>
+              <div><dt>Causation</dt><dd>{selectedEvent.causation_id || "none"}</dd></div>
+            </dl>
+            <pre className="event-payload">{JSON.stringify(selectedEvent.payload || {}, null, 2)}</pre>
+            <div className="modal-actions">
+              <button className="ghost-button" onClick={() => setSelectedEvent(null)}>
+                Close
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 export default function App() {
   const [summary, setSummary] = useState(null);
   const [alerts, setAlerts] = useState([]);
   const [telemetryRows, setTelemetryRows] = useState([]);
+  const [events, setEvents] = useState([]);
   const [scenarioState, setScenarioState] = useState({ active: false, scenario: null });
   const [activeView, setActiveView] = useState("console");
   const [autoClearRectified, setAutoClearRectified] = useState(true);
@@ -769,11 +957,13 @@ export default function App() {
   const deferredAssetFilter = useDeferredValue(assetFilter);
 
   async function refreshDashboard() {
-    const [summaryPayload, alertsPayload, scenarioPayload, telemetryPayload] = await Promise.all([
+    const eventsPromise = readJson("/events/recent?limit=100").catch(() => ({ rows: [] }));
+    const [summaryPayload, alertsPayload, scenarioPayload, telemetryPayload, eventsPayload] = await Promise.all([
       readJson("/summary"),
       readJson("/alerts/recent?limit=250"),
       readJson("/simulator/scenario"),
       readJson("/telemetry/recent?limit=200"),
+      eventsPromise,
     ]);
 
     startTransition(() => {
@@ -781,6 +971,7 @@ export default function App() {
       setAlerts(alertsPayload.rows || []);
       setScenarioState(scenarioPayload);
       setTelemetryRows(telemetryPayload.rows || []);
+      setEvents(eventsPayload.rows || []);
       setLastUpdatedAt(new Date().toISOString());
       setLoading(false);
     });
@@ -874,7 +1065,10 @@ export default function App() {
       await readJson(`/simulator/scenarios/${scenario.key}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ duration_seconds: durationSeconds }),
+        body: JSON.stringify({
+          duration_seconds: durationSeconds,
+          ...(scenario.payload || {}),
+        }),
       });
       await refreshDashboard();
       setBanner({
@@ -1062,6 +1256,12 @@ export default function App() {
         >
           Alarm History
         </button>
+        <button
+          className={activeView === "events" ? "active" : ""}
+          onClick={() => setActiveView("events")}
+        >
+          Events
+        </button>
       </nav>
 
       {activeView === "overview" ? (
@@ -1072,6 +1272,8 @@ export default function App() {
         />
       ) : activeView === "history" ? (
         <AlarmHistory alerts={alerts} lastUpdatedAt={lastUpdatedAt} />
+      ) : activeView === "events" ? (
+        <EventTimeline events={events} lastUpdatedAt={lastUpdatedAt} />
       ) : (
         <>
           <section className="summary-grid">

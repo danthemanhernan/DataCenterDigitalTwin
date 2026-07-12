@@ -16,7 +16,7 @@ Implement one end-to-end demand-response scenario in `DataCenterDigitalTwin`:
 - [x] Store power, GPU, cooling, KPI, and alert telemetry in ClickHouse
 - [ ] Emit durable domain events for the price spike, policy decision, command, equipment response, alert lifecycle, and recovery
 - [ ] Correlate ClickHouse telemetry windows with event-store records using shared asset, scenario, correlation, and causation identifiers
-- [ ] Display the event timeline in Grafana
+- [x] Display the event timeline in Grafana
 - [ ] Surface the active alert and recovery status in the React operator console
 - [x] Expose the scenario trigger and reset controls through FastAPI
 
@@ -227,7 +227,7 @@ Generate alerts for:
 - [ ] Historical trend dashboard
 - [ ] PUE dashboard
 - [ ] Demand response dashboard
-- [ ] Event annotations over telemetry trends
+- [x] Event annotations over telemetry trends
 - [ ] Predictive-maintenance score and intervention dashboard
 
 ### React Operator Console

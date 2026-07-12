@@ -14,6 +14,7 @@ The simulated topology assumes a simple 2N redundant layout with two representat
 - clickhouse-connect
 - Mosquitto MQTT
 - ClickHouse
+- PostgreSQL event store
 - Grafana
 - Prometheus
 - React / Vite
@@ -148,6 +149,7 @@ uv run --package dc-digital-twin python -m app.maintenance_model --once --fixtur
 - Simulator scenario reset: `DELETE http://localhost:8000/simulator/scenario`
 - Simulator scenario catalog: `http://localhost:8000/simulator/scenarios`
 - Demand-response scenario trigger: `POST http://localhost:8000/simulator/scenarios/demand-response`
+- Recent domain events: `http://localhost:8000/events/recent`
 - Alert rules: `http://localhost:8000/alerts/rules`
 - Recent alert events: `http://localhost:8000/alerts/recent`
 - Alert state: `http://localhost:8000/alerts/{alert_key}/state`
@@ -173,12 +175,14 @@ For shareable deployments, publish immutable tags to a registry such as GitHub C
 - The SQL views are designed to be easy starting points for Grafana panels.
 - The repo uses a uv workspace at the root, with the Python package defined in `apps/api/pyproject.toml`.
 - ClickHouse automatically applies the SQL files mounted from `deploy/clickhouse/sql/` on first startup of a fresh `clickhouse_data` volume.
+- PostgreSQL automatically applies `deploy/postgres/sql/init.sql` on first startup of a fresh `postgres_data` volume, creating the append-only `event_store.events` table.
 - Grafana provisions ClickHouse and Prometheus datasources automatically and loads starter dashboards for facility telemetry and API monitoring.
 - Grafana also provisions `Mini DC Facility Trends Live`, a copy of the facility dashboard that reads raw telemetry timestamps without minute bucketing so live scenario testing shows every simulator step.
 - Trend dashboards now include threshold lines that match the warning and critical alarm rules in `app/logic.py`, and the asset trend dashboard exposes Grafana variables for rack, HVAC, and power asset selection.
 - Telemetry trend panels split one query into separate asset series with Grafana transforms, and they use peak-oriented aggregation (`max`, or `min` for UPS battery) to make alarm excursions easier to spot.
 - Scenario profiles now progress through staged behavior over their duration instead of jumping directly to a single failure snapshot, making transfer events, recovery ramps, and compensating equipment behavior easier to observe.
 - The demand-response profile adds utility price, utility capacity, GPU load, GPU power, load-shed percentage, chilled-water loop, PUE, and power-cost telemetry while reusing the existing ClickHouse telemetry table.
+- The demand-response API trigger emits the first durable PostgreSQL domain-event sequence: scenario started, price spike detected, policy evaluated, load shedding requested, and equipment command issued.
 - Default Grafana login comes from `.env`, and the provisioned home dashboard is `Mini DC Operations Overview`.
 - Grafana runs with anonymous viewer access and `allow_embedding` enabled so the React console can embed the most critical panels directly in the operator workflow.
 - FastAPI exposes Prometheus-style metrics at `/metrics`, and Prometheus scrapes the containerized API from `api:8000` for the API monitoring dashboard.

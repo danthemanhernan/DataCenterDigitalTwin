@@ -37,6 +37,27 @@ services:
       timeout: 3s
       retries: 12
 
+  postgres:
+    image: postgres:16-alpine
+    container_name: mini-dc-event-store
+    restart: unless-stopped
+    ports:
+      - "${EVENT_STORE_PORT:-5432}:5432"
+    environment:
+      POSTGRES_USER: ${EVENT_STORE_USER}
+      POSTGRES_PASSWORD: ${EVENT_STORE_PASSWORD}
+      POSTGRES_DB: ${EVENT_STORE_DATABASE}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../postgres/sql/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"
+      interval: 10s
+      timeout: 3s
+      retries: 12
+
   api:
     build:
       context: ../../apps/api
@@ -57,6 +78,12 @@ services:
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
       CLICKHOUSE_DATABASE: ${CLICKHOUSE_DATABASE}
+      EVENT_STORE_ENABLED: ${EVENT_STORE_ENABLED:-true}
+      EVENT_STORE_HOST: postgres
+      EVENT_STORE_PORT: 5432
+      EVENT_STORE_USER: ${EVENT_STORE_USER}
+      EVENT_STORE_PASSWORD: ${EVENT_STORE_PASSWORD}
+      EVENT_STORE_DATABASE: ${EVENT_STORE_DATABASE}
       SITE_NAME: ${SITE_NAME}
       FRONTEND_ORIGINS: ${FRONTEND_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173}
       SIMULATOR_CONTROL_PATH: /runtime/simulator-control.json
@@ -64,6 +91,8 @@ services:
       - simulator_runtime:/runtime
     depends_on:
       clickhouse:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
       mqtt:
         condition: service_started
@@ -200,3 +229,4 @@ volumes:
   clickhouse_data:
   grafana_data:
   simulator_runtime:
+  postgres_data:

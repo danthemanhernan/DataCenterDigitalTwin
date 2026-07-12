@@ -102,36 +102,36 @@ ClickHouse remains the analytical system of record for high-volume numeric proce
 
 Use a separate durable event store for lower-volume, higher-value facts describing equipment behavior and system decisions.
 
-- [ ] Select and document the first event-store implementation
-  - [ ] Start with PostgreSQL using an append-only `events` table for local learning and operational simplicity
+- [x] Select and document the first event-store implementation
+  - [x] Start with PostgreSQL using an append-only `events` table for local learning and operational simplicity
   - [ ] Keep the event envelope portable so EventStoreDB can be evaluated later without redesigning producers
   - [ ] Continue using MQTT for device-facing transport; evaluate NATS JetStream later for durable internal delivery and replay
-- [ ] Define a canonical event envelope with:
-  - [ ] `event_id`
-  - [ ] `event_type`
-  - [ ] `event_version`
-  - [ ] `stream_id`
-  - [ ] `stream_version`
-  - [ ] `asset_id` and `asset_type`
-  - [ ] `occurred_at` and `recorded_at`
-  - [ ] `correlation_id` and `causation_id`
-  - [ ] `scenario_id`
-  - [ ] `source`
-  - [ ] `payload`
-  - [ ] `metadata`
-- [ ] Enforce append-only writes and unique stream-version constraints
-- [ ] Implement optimistic concurrency when appending to an asset or workflow stream
+- [x] Define a canonical event envelope with:
+  - [x] `event_id`
+  - [x] `event_type`
+  - [x] `event_version`
+  - [x] `stream_id`
+  - [x] `stream_version`
+  - [x] `asset_id` and `asset_type`
+  - [x] `occurred_at` and `recorded_at`
+  - [x] `correlation_id` and `causation_id`
+  - [x] `scenario_id`
+  - [x] `source`
+  - [x] `payload`
+  - [x] `metadata`
+- [x] Enforce append-only writes and unique stream-version constraints
+- [x] Implement optimistic concurrency when appending to an asset or workflow stream
 - [ ] Define event-schema versioning and upcasting rules
 - [ ] Define event-retention, backup, and restore expectations
 
 ### Initial Domain Events
 
-- [ ] `ScenarioStarted`
+- [x] `ScenarioStarted`
 - [ ] `ScenarioCompleted`
-- [ ] `UtilityPriceSpikeDetected`
-- [ ] `DemandResponsePolicyEvaluated`
-- [ ] `LoadSheddingRequested`
-- [ ] `EquipmentCommandIssued`
+- [x] `UtilityPriceSpikeDetected`
+- [x] `DemandResponsePolicyEvaluated`
+- [x] `LoadSheddingRequested`
+- [x] `EquipmentCommandIssued`
 - [ ] `EquipmentStateChanged`
 - [ ] `ThresholdExceeded`
 - [ ] `AlertRaised`
@@ -147,8 +147,8 @@ Use a separate durable event store for lower-volume, higher-value facts describi
 
 ### Event Producers and Projectors
 
-- [ ] Add a reusable Python event-envelope package shared by API and workers
-- [ ] Add an event-writer abstraction so application code does not depend directly on PostgreSQL or EventStoreDB APIs
+- [x] Add a reusable Python event-envelope package shared by API and workers
+- [x] Add an event-writer abstraction so application code does not depend directly on PostgreSQL or EventStoreDB APIs
 - [ ] Emit events from scenario control, alerting, maintenance scoring, operator actions, and simulated equipment state transitions
 - [ ] Build an event projector that creates an asset timeline read model
 - [ ] Build an event projector that creates alert-lifecycle views
@@ -261,9 +261,9 @@ Generate alerts for:
 
 ### Increment 2A — Event Foundation
 
-- [ ] Add PostgreSQL to Docker Compose
-- [ ] Create the append-only event schema and migration
-- [ ] Implement the canonical Python event envelope and event writer
+- [x] Add PostgreSQL to Docker Compose
+- [x] Create the append-only event schema and migration
+- [x] Implement the canonical Python event envelope and event writer
 - [ ] Emit scenario, operator-command, and alert-lifecycle events
 - [ ] Add unit and integration tests for ordering, idempotency, and optimistic concurrency
 

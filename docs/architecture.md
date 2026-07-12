@@ -73,8 +73,8 @@ The same real-world occurrence can be represented in both stores at different le
 | `mqtt` | Carries simulator telemetry on `dc/telemetry/#`. | `deploy/mosquitto/mosquitto.conf` |
 | `ingest` | Subscribes to MQTT, enriches payloads, and batches inserts into ClickHouse. | `apps/api/app/ingest.py` |
 | `clickhouse` | Stores raw telemetry, analytical rollups, derived features, and maintenance scoring inputs. | `deploy/clickhouse/sql/` |
-| `event-store` | Phase 2 PostgreSQL service containing append-only domain-event streams and projector checkpoints. | Planned |
-| `event-writer` | Shared application abstraction for validating and appending canonical domain events. | Planned |
+| `event-store` | Phase 2 PostgreSQL service containing append-only domain-event streams and projector checkpoints. | `deploy/postgres/sql/init.sql` |
+| `event-writer` | Shared application abstraction for validating and appending canonical domain events. | `apps/api/app/event_store.py` |
 | `event-projector` | Builds asset timeline, alert lifecycle, and maintenance read models from durable events. | Planned |
 | `api` | Exposes health, telemetry, alert, scenario, event timeline, maintenance, and metrics endpoints. | `apps/api/app/api.py` |
 | `alerting` | Evaluates recent telemetry, manages alert policy, and emits alert lifecycle events. | `apps/api/app/alerting.py` |
@@ -181,8 +181,17 @@ Current scenarios:
 - `power_outage`
 - `cooling_degradation`
 - `load_transfer`
+- `demand_response`
 
 Phase 2 should emit events for scenario request, activation, derived equipment commands, state transitions, completion, cancellation, and recovery so the complete operational narrative can be replayed independently of the temporary control document.
+
+The demand-response scenario now emits the first API-side event sequence into PostgreSQL:
+
+- `ScenarioStarted`
+- `UtilityPriceSpikeDetected`
+- `DemandResponsePolicyEvaluated`
+- `LoadSheddingRequested`
+- `EquipmentCommandIssued`
 
 ## Observability
 

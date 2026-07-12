@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from random import choice
 from typing import Any
+from uuid import uuid4
 
 from dotenv import load_dotenv
 
@@ -99,8 +100,12 @@ def trigger_scenario(
 
     activated_at = utc_now()
     expires_at = activated_at.timestamp() + max(duration_seconds, 1)
+    scenario_id = f"{scenario}-{uuid4()}"
+    correlation_id = str(uuid4())
     command = {
         "scenario": scenario,
+        "scenario_id": scenario_id,
+        "correlation_id": correlation_id,
         "activated_at": serialize_timestamp(activated_at),
         "expires_at": serialize_timestamp(datetime.fromtimestamp(expires_at, tz=UTC)),
         "duration_seconds": max(duration_seconds, 1),

@@ -2,6 +2,7 @@ import os
 import time
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from uuid import UUID
 
 import clickhouse_connect
 from dotenv import load_dotenv
@@ -22,6 +23,7 @@ from .alerting import (
     get_alert_state,
     record_alert_action,
 )
+from .event_store import EVENT_STORE_ENABLED, EventEnvelope, append_event, list_recent_events
 from .logic import (
     SCENARIOS,
     clear_simulator_control,
@@ -110,11 +112,111 @@ def serialize_scenario_state(scenario: dict[str, Any] | None) -> dict[str, Any]:
     return {
         "active": True,
         "scenario": scenario["scenario"],
+        "scenario_id": scenario.get("scenario_id"),
+        "correlation_id": scenario.get("correlation_id"),
         "activated_at": serialize_timestamp(scenario["activated_at"]),
         "expires_at": serialize_timestamp(scenario["expires_at"]),
         "duration_seconds": scenario["duration_seconds"],
         "parameters": scenario.get("parameters", {}),
     }
+
+
+def emit_scenario_started_events(scenario: dict[str, Any]) -> list[EventEnvelope]:
+    if not EVENT_STORE_ENABLED:
+        return []
+
+    correlation_id = UUID(scenario["correlation_id"])
+    scenario_id = scenario["scenario_id"]
+    stream_id = f"scenario:{scenario_id}"
+    common = {
+        "stream_id": stream_id,
+        "source": "api",
+        "correlation_id": correlation_id,
+        "scenario_id": scenario_id,
+        "metadata": {"scenario": scenario["scenario"]},
+    }
+    started = append_event(
+        EventEnvelope(
+            event_type="ScenarioStarted",
+            payload={
+                "scenario": scenario["scenario"],
+                "duration_seconds": scenario["duration_seconds"],
+                "activated_at": serialize_timestamp(scenario["activated_at"]),
+                "expires_at": serialize_timestamp(scenario["expires_at"]),
+                "parameters": scenario.get("parameters", {}),
+            },
+            idempotency_key=f"{scenario_id}:scenario-started",
+            **common,
+        ),
+        expected_stream_version=0,
+    )
+
+    if scenario["scenario"] != "demand_response":
+        return [started]
+
+    parameters = scenario.get("parameters", {})
+    price_spike = append_event(
+        EventEnvelope(
+            event_type="UtilityPriceSpikeDetected",
+            asset_type="utility",
+            asset_id="utility-grid",
+            causation_id=started.event_id,
+            payload={
+                "price_spike_usd_mwh": parameters.get("price_spike_usd_mwh"),
+                "trigger": "operator_requested_scenario",
+            },
+            idempotency_key=f"{scenario_id}:utility-price-spike-detected",
+            **common,
+        ),
+        expected_stream_version=1,
+    )
+    policy = append_event(
+        EventEnvelope(
+            event_type="DemandResponsePolicyEvaluated",
+            asset_type="compute",
+            asset_id="gpu-cluster-a",
+            causation_id=price_spike.event_id,
+            payload={
+                "shed_target_pct": parameters.get("shed_target_pct"),
+                "recovery_target_minutes": parameters.get("recovery_target_minutes"),
+                "decision": "shed_noncritical_gpu_load",
+            },
+            idempotency_key=f"{scenario_id}:demand-response-policy-evaluated",
+            **common,
+        ),
+        expected_stream_version=2,
+    )
+    load_shed = append_event(
+        EventEnvelope(
+            event_type="LoadSheddingRequested",
+            asset_type="compute",
+            asset_id="gpu-cluster-a",
+            causation_id=policy.event_id,
+            payload={
+                "shed_target_pct": parameters.get("shed_target_pct"),
+                "reason": "utility_price_spike",
+            },
+            idempotency_key=f"{scenario_id}:load-shedding-requested",
+            **common,
+        ),
+        expected_stream_version=3,
+    )
+    command = append_event(
+        EventEnvelope(
+            event_type="EquipmentCommandIssued",
+            asset_type="compute",
+            asset_id="gpu-cluster-a",
+            causation_id=load_shed.event_id,
+            payload={
+                "command": "reduce_gpu_load",
+                "shed_target_pct": parameters.get("shed_target_pct"),
+            },
+            idempotency_key=f"{scenario_id}:equipment-command-issued",
+            **common,
+        ),
+        expected_stream_version=4,
+    )
+    return [started, price_spike, policy, load_shed, command]
 
 
 def serialize_alert_state(alert_state: dict[str, Any]) -> dict[str, Any]:
@@ -261,18 +363,21 @@ def list_simulator_scenarios() -> dict[str, Any]:
 @app.post("/simulator/scenarios/power-outage")
 def trigger_power_outage_scenario(payload: PowerOutageRequest) -> dict[str, Any]:
     scenario = trigger_scenario("power_outage", duration_seconds=payload.duration_seconds)
+    emit_scenario_started_events(scenario)
     return serialize_scenario_state(scenario)
 
 
 @app.post("/simulator/scenarios/cooling-degradation")
 def trigger_cooling_degradation_scenario(payload: PowerOutageRequest) -> dict[str, Any]:
     scenario = trigger_scenario("cooling_degradation", duration_seconds=payload.duration_seconds)
+    emit_scenario_started_events(scenario)
     return serialize_scenario_state(scenario)
 
 
 @app.post("/simulator/scenarios/load-transfer")
 def trigger_load_transfer_scenario(payload: PowerOutageRequest) -> dict[str, Any]:
     scenario = trigger_scenario("load_transfer", duration_seconds=payload.duration_seconds)
+    emit_scenario_started_events(scenario)
     return serialize_scenario_state(scenario)
 
 
@@ -287,7 +392,14 @@ def trigger_demand_response_scenario(payload: DemandResponseRequest) -> dict[str
             "recovery_target_minutes": payload.recovery_target_minutes,
         },
     )
+    emit_scenario_started_events(scenario)
     return serialize_scenario_state(scenario)
+
+
+@app.get("/events/recent")
+def recent_events(limit: int = 50) -> dict[str, Any]:
+    bounded_limit = min(max(limit, 1), 250)
+    return {"rows": [event.as_response() for event in list_recent_events(limit=bounded_limit)]}
 
 
 @app.get("/alarms/active")

@@ -33,6 +33,17 @@ The ingest batching settings reduce tiny ClickHouse inserts while keeping local 
 | `CLICKHOUSE_PASSWORD` | `password` in examples | API, ingest, alerting, maintenance model, ClickHouse container env | ClickHouse password for local stack. |
 | `CLICKHOUSE_DATABASE` | `dc_twin` | API, ingest, alerting, maintenance model, ClickHouse container env | Database name created by the init SQL. |
 
+## Event Store
+
+| Variable | Default | Used by | Purpose |
+| --- | --- | --- | --- |
+| `EVENT_STORE_ENABLED` | `true` in Compose, `false` for direct Python imports | API and workers | Enables PostgreSQL-backed domain-event writes. |
+| `EVENT_STORE_HOST` | `postgres` in Compose | API and workers | PostgreSQL event-store hostname. |
+| `EVENT_STORE_PORT` | `5432` | API and workers, Compose port mapping | PostgreSQL event-store port. |
+| `EVENT_STORE_USER` | `dc_twin` | PostgreSQL container, API and workers | Event-store database user. |
+| `EVENT_STORE_PASSWORD` | `events_password` in examples | PostgreSQL container, API and workers | Local event-store database password. |
+| `EVENT_STORE_DATABASE` | `dc_twin_events` | PostgreSQL container, API and workers | Database containing the append-only `event_store.events` table. |
+
 ## API And Frontend
 
 | Variable | Default | Used by | Purpose |

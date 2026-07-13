@@ -24,7 +24,7 @@
         "name": "Domain Events",
         "target": {
           "format": "table",
-          "rawSql": "SELECT\n  occurred_at AS time,\n  event_type || COALESCE(' - ' || asset_id, '') AS text,\n  ARRAY[\n    event_type,\n    COALESCE(asset_type, 'scenario'),\n    COALESCE(scenario_id, 'no-scenario')\n  ] AS tags\nFROM event_store.events\nWHERE $__timeFilter(occurred_at)\nORDER BY occurred_at",
+          "rawSql": "SELECT\n  occurred_at AS time,\n  event_type || COALESCE(' - ' || asset_id, '') AS text,\n  concat_ws(',', event_type, COALESCE(asset_type, 'scenario'), COALESCE(scenario_id, 'no-scenario')) AS tags\nFROM event_store.events\nWHERE $__timeFilter(occurred_at)\nORDER BY occurred_at",
           "refId": "DomainEventsAnnotations"
         },
         "type": "query"

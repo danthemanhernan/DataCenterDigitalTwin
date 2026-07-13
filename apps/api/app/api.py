@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 
 from .alerting import (
     ALERT_RULES,
+    ALERT_METRIC_ASSET_TYPES,
     ensure_alerting_schema,
     get_alert_state,
     record_alert_action,
@@ -296,6 +297,13 @@ def get_latest_acknowledgement(client: Any, alert_key: str) -> dict[str, Any] | 
     return rows[0] if rows else None
 
 
+def valid_alert_metric_clause() -> str:
+    return " OR ".join(
+        f"(metric = '{metric}' AND asset_type = '{asset_type}')"
+        for metric, asset_type in ALERT_METRIC_ASSET_TYPES.items()
+    )
+
+
 def seconds_between(start: Any, end: Any) -> int | None:
     if not start or not end:
         return None
@@ -422,19 +430,47 @@ def recent_alerts(limit: int = 50):
     client = get_client()
     ensure_alerting_schema(client)
     result = client.query(
-        """
+        f"""
         SELECT
             ts,
             alert_key,
-            rule_name,
-            asset_id,
-            severity,
-            metric,
-            current_value,
-            threshold_value,
+            latest_rule_name AS rule_name,
+            latest_asset_id AS asset_id,
+            latest_severity AS severity,
+            latest_metric AS metric,
+            latest_current_value AS current_value,
+            latest_threshold_value AS threshold_value,
             observation_count,
-            message
-        FROM dc_twin.v_recent_alerts
+            latest_message AS message
+        FROM (
+            SELECT
+                max(event_ts) AS ts,
+                alert_key,
+                argMax(rule_name, event_ts) AS latest_rule_name,
+                argMax(asset_id, event_ts) AS latest_asset_id,
+                argMax(severity, event_ts) AS latest_severity,
+                argMax(metric, event_ts) AS latest_metric,
+                argMax(current_value, event_ts) AS latest_current_value,
+                argMax(threshold_value, event_ts) AS latest_threshold_value,
+                max(observation_count) AS observation_count,
+                argMax(message, event_ts) AS latest_message
+            FROM (
+                SELECT
+                    ts AS event_ts,
+                    alert_key,
+                    rule_name,
+                    asset_id,
+                    severity,
+                    metric,
+                    current_value,
+                    threshold_value,
+                    observation_count,
+                    message
+                FROM dc_twin.v_recent_alerts
+                WHERE {valid_alert_metric_clause()}
+            )
+            GROUP BY alert_key
+        )
         ORDER BY ts DESC
         LIMIT %(limit)s
         """,

@@ -26,6 +26,12 @@ MQTT_HOST = os.getenv("MQTT_HOST", "localhost")
 MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
 MQTT_TOPIC_ROOT = os.getenv("MQTT_TOPIC_ROOT", "dc/telemetry")
 PUBLISH_INTERVAL_SECONDS = float(os.getenv("SIM_INTERVAL_SECONDS", "2.0"))
+SCENARIO_ASSETS = {
+    "power_outage": ("utility-grid", "utility"),
+    "cooling_degradation": ("cooling-loop-a", "cooling"),
+    "load_transfer": ("gpu-cluster-a", "compute"),
+    "demand_response": ("gpu-cluster-a", "compute"),
+}
 
 
 def main() -> None:
@@ -38,24 +44,35 @@ def main() -> None:
     while True:
         scenario = get_active_simulator_scenario()
         if scenario and scenario["scenario_id"] != previous_scenario_id:
+            asset_id, asset_type = SCENARIO_ASSETS[scenario["scenario"]]
             emit_domain_event(
                 event_type="EquipmentStateChanged",
                 stream_id=f"asset:scenario:{scenario['scenario_id']}",
                 source="simulator",
-                asset_id=scenario["scenario"],
-                asset_type="scenario",
+                asset_id=asset_id,
+                asset_type=asset_type,
                 correlation_id=UUID(scenario["correlation_id"]),
                 scenario_id=scenario["scenario_id"],
                 payload={"state": "active", "scenario": scenario["scenario"]},
                 idempotency_key=f"{scenario['scenario_id']}:equipment-state-active",
             )
         if scenario is None and previous_scenario is not None:
+            asset_id, asset_type = SCENARIO_ASSETS[previous_scenario["scenario"]]
+            emit_domain_event(
+                event_type="ScenarioCompleted",
+                stream_id=f"scenario:{previous_scenario['scenario_id']}",
+                source="simulator",
+                correlation_id=UUID(previous_scenario["correlation_id"]),
+                scenario_id=previous_scenario["scenario_id"],
+                payload={"scenario": previous_scenario["scenario"], "reason": "natural_expiry"},
+                idempotency_key=f"{previous_scenario['scenario_id']}:scenario-completed",
+            )
             emit_domain_event(
                 event_type="EquipmentRecovered",
                 stream_id=f"asset:scenario:{previous_scenario['scenario_id']}",
                 source="simulator",
-                asset_id=previous_scenario["scenario"],
-                asset_type="scenario",
+                asset_id=asset_id,
+                asset_type=asset_type,
                 correlation_id=UUID(previous_scenario["correlation_id"]),
                 scenario_id=previous_scenario["scenario_id"],
                 payload={"state": "recovered", "scenario": previous_scenario["scenario"]},

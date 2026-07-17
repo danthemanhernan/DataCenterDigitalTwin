@@ -173,7 +173,7 @@ Raw samples should remain in ClickHouse. Stateful workers should convert meaning
 
 - [ ] Build model features from ClickHouse telemetry windows
 - [ ] Join telemetry features with event-store maintenance, alarm, intervention, and failure history
-- [ ] Emit `MaintenanceRiskScored` for every scored asset window
+- [x] Emit `MaintenanceRiskScored` for every scored asset window
 - [ ] Emit `MaintenanceRecommended` only when policy thresholds and cooldown rules are met
 - [ ] Capture model name, model version, feature-set version, threshold, score, and explanation metadata in inference events
 - [ ] Record whether a recommendation was acknowledged, acted upon, dismissed, or followed by failure

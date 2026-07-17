@@ -29,6 +29,7 @@ class FixedClock:
 def test_telemetry_values_preserves_column_order():
     row = {
         "ts": datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC),
+        "ingested_at": datetime(2026, 1, 1, 12, 0, 1, tzinfo=UTC),
         "site": "DC",
         "zone": "zone-a",
         "asset_type": "rack",
@@ -40,10 +41,13 @@ def test_telemetry_values_preserves_column_order():
         "alarm_text": "",
         "severity_score": 0,
         "quality": "good",
+        "source": "mqtt-ingest",
+        "source_topic": "dc/telemetry/rack/rack-1",
     }
 
     assert ingest.telemetry_values(row) == [
         row["ts"],
+        row["ingested_at"],
         row["site"],
         row["zone"],
         row["asset_type"],
@@ -55,6 +59,8 @@ def test_telemetry_values_preserves_column_order():
         row["alarm_text"],
         row["severity_score"],
         row["quality"],
+        row["source"],
+        row["source_topic"],
     ]
 
 
@@ -71,6 +77,7 @@ def test_telemetry_buffer_flushes_when_batch_size_reached(monkeypatch):
     buffer = ingest.TelemetryBuffer(client, batch_size=2, flush_seconds=1000.0)
     row = {
         "ts": datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC),
+        "ingested_at": datetime(2026, 1, 1, 12, 0, 1, tzinfo=UTC),
         "site": "DC",
         "zone": "zone-a",
         "asset_type": "rack",
@@ -82,6 +89,8 @@ def test_telemetry_buffer_flushes_when_batch_size_reached(monkeypatch):
         "alarm_text": "",
         "severity_score": 0,
         "quality": "good",
+        "source": "mqtt-ingest",
+        "source_topic": "dc/telemetry/rack/rack-1",
     }
 
     assert buffer.add(row) == 0
@@ -97,6 +106,7 @@ def test_telemetry_buffer_flushes_by_time(monkeypatch):
     buffer = ingest.TelemetryBuffer(client, batch_size=100, flush_seconds=5.0)
     row = {
         "ts": datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC),
+        "ingested_at": datetime(2026, 1, 1, 12, 0, 1, tzinfo=UTC),
         "site": "DC",
         "zone": "zone-a",
         "asset_type": "rack",
@@ -108,6 +118,8 @@ def test_telemetry_buffer_flushes_by_time(monkeypatch):
         "alarm_text": "",
         "severity_score": 0,
         "quality": "good",
+        "source": "mqtt-ingest",
+        "source_topic": "dc/telemetry/rack/rack-1",
     }
 
     buffer.add(row)

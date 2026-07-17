@@ -162,4 +162,7 @@ def test_normalize_message_populates_expected_fields():
     assert normalized["unit"] == "C"
     assert normalized["quality"] == "good"
     assert normalized["ts"] == payload["ts"]
+    assert normalized["ingested_at"].tzinfo == UTC
     assert normalized["severity_score"] == 100
+    assert normalized["source"] == "mqtt-ingest"
+    assert normalized["source_topic"] == topic

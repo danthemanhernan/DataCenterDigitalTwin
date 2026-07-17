@@ -166,6 +166,7 @@ def normalize_message(topic: str, payload: dict[str, Any]) -> dict[str, Any]:
 
     return {
         "ts": payload.get("ts", utc_now()),
+        "ingested_at": utc_now(),
         "site": SITE_NAME,
         "zone": zone,
         "asset_type": asset_type,
@@ -177,6 +178,8 @@ def normalize_message(topic: str, payload: dict[str, Any]) -> dict[str, Any]:
         "alarm_text": alarm_text,
         "severity_score": {"normal": 0, "warning": 50, "critical": 100}[status],
         "quality": payload.get("quality", "good"),
+        "source": "mqtt-ingest",
+        "source_topic": topic,
     }
 
 

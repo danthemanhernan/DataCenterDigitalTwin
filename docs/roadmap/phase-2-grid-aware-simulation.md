@@ -91,7 +91,7 @@ ClickHouse remains the analytical system of record for high-volume numeric proce
 
 - [ ] Store raw and normalized equipment telemetry in ClickHouse
 - [ ] Design high-performance telemetry tables using appropriate partitioning, ordering keys, codecs, and retention policies
-- [ ] Preserve event time, ingestion time, site, zone, asset class, asset ID, metric name, engineering unit, quality, and source metadata
+- [x] Preserve event time, ingestion time, site, zone, asset class, asset ID, metric name, engineering unit, quality, and source metadata
 - [ ] Add shared `correlation_id`, `scenario_id`, and `event_id` fields where telemetry is associated with a domain event
 - [ ] Create materialized views for minute, hourly, and daily rollups
 - [ ] Create feature-oriented views for predictive-maintenance windows

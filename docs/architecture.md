@@ -89,7 +89,7 @@ The same real-world occurrence can be represented in both stores at different le
 
 1. The simulator chooses a normal profile or a temporary scenario profile.
 2. It publishes metric payloads to Mosquitto topics such as `dc/telemetry/rack/rack-a01`.
-3. The ingest worker parses each payload, adds site, zone, asset class, severity, and alarm text, then writes batched rows into `dc_twin.telemetry_raw`.
+3. The ingest worker parses each payload, adds site, zone, asset class, severity, alarm text, UTC ingestion time, and MQTT source metadata, then writes batched rows into `dc_twin.telemetry_raw`.
 4. FastAPI reads ClickHouse for summary, recent telemetry, active alarms, and alert lifecycle views.
 5. The alerting worker evaluates ClickHouse queries on a schedule and writes alert events/actions.
 6. The maintenance worker builds metric baselines from recent telemetry and writes risk scores.

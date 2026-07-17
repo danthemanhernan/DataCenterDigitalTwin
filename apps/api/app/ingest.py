@@ -26,6 +26,7 @@ CLICKHOUSE_DATABASE = os.getenv("CLICKHOUSE_DATABASE", "dc_twin")
 
 TELEMETRY_COLUMNS = [
     "ts",
+    "ingested_at",
     "site",
     "zone",
     "asset_type",
@@ -37,6 +38,8 @@ TELEMETRY_COLUMNS = [
     "alarm_text",
     "severity_score",
     "quality",
+    "source",
+    "source_topic",
 ]
 
 
@@ -63,6 +66,17 @@ def insert_telemetry(ch_client: Any, rows: list[list[Any]]) -> None:
         data=rows,
         column_names=TELEMETRY_COLUMNS,
     )
+
+
+def ensure_telemetry_schema(ch_client: Any) -> None:
+    ch_client.command("CREATE DATABASE IF NOT EXISTS dc_twin")
+    ch_client.command(
+        "ALTER TABLE dc_twin.telemetry_raw ADD COLUMN IF NOT EXISTS ingested_at DateTime64(3, 'UTC') DEFAULT now64(3)"
+    )
+    ch_client.command(
+        "ALTER TABLE dc_twin.telemetry_raw ADD COLUMN IF NOT EXISTS source LowCardinality(String) DEFAULT 'unknown'"
+    )
+    ch_client.command("ALTER TABLE dc_twin.telemetry_raw ADD COLUMN IF NOT EXISTS source_topic String DEFAULT ''")
 
 
 class TelemetryBuffer:
@@ -116,6 +130,7 @@ def on_message(client: mqtt.Client, userdata: dict[str, Any], msg: mqtt.MQTTMess
 
 def main() -> None:
     ch_client = create_client()
+    ensure_telemetry_schema(ch_client)
     telemetry_buffer = TelemetryBuffer(
         ch_client,
         batch_size=INGEST_BATCH_SIZE,

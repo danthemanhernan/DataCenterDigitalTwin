@@ -184,6 +184,51 @@ def test_insert_alert_event_forwards_data_to_client():
     assert inserted["data"][0][7] == "critical"
 
 
+def test_emit_alert_domain_events_emits_threshold_and_raise(monkeypatch):
+    emitted = []
+
+    def fake_emit_domain_event(**kwargs):
+        emitted.append(kwargs)
+        return None
+
+    monkeypatch.setattr(alerting, "emit_domain_event", fake_emit_domain_event)
+    row = {
+        "ts": datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC),
+        "alert_key": "alert-1",
+        "rule_name": "test-rule",
+        "asset_type": "rack",
+        "asset_id": "rack-1",
+        "severity": "critical",
+        "status": "open",
+        "metric": "rack_temp_c",
+        "message": "high temperature",
+        "current_value": 40.0,
+        "threshold_value": 38.0,
+        "observation_count": 2,
+        "source": "python-alerting",
+    }
+
+    alerting.emit_alert_domain_events(row)
+
+    assert [event["event_type"] for event in emitted] == ["ThresholdExceeded", "AlertRaised"]
+
+
+def test_alert_rules_scope_metrics_to_canonical_asset_types():
+    expected_filters = {
+        "repeated_critical_rack_temp": "asset_type = 'rack'",
+        "sustained_high_hvac_supply_temp": "asset_type = 'hvac'",
+        "sustained_low_ups_battery": "asset_type = 'power'",
+    }
+
+    for rule in alerting.ALERT_RULES:
+        assert expected_filters[rule.name] in rule.query
+
+
+def test_alert_rules_do_not_select_aggregated_asset_type_alias():
+    for rule in alerting.ALERT_RULES:
+        assert "any(asset_type) AS asset_type" not in rule.query
+
+
 def test_evaluate_rules_returns_candidate_when_not_muted_or_open(monkeypatch):
     rule = alerting.AlertRule(
         name="test-rule",

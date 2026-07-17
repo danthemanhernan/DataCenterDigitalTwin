@@ -24,6 +24,17 @@ const SCENARIOS = [
     durationSeconds: 45,
     description: "Shift electrical loading across the redundant power paths without a total outage.",
   },
+  {
+    key: "demand-response",
+    title: "Demand Response",
+    durationSeconds: 90,
+    description: "Spike utility pricing, shed GPU load, and watch cooling recover against the event timeline.",
+    payload: {
+      price_spike_usd_mwh: 725,
+      shed_target_pct: 40,
+      recovery_target_minutes: 20,
+    },
+  },
 ];
 
 const EMBEDS = [
@@ -158,14 +169,22 @@ const METRIC_LABELS = {
   pdu_branch_load_pct: { label: "Branch load", kind: "Power" },
 };
 
-const SORT_LABELS = {
-  ts: "Newest",
+const INCIDENT_SORT_LABELS = {
+  ts: "Last changed",
   severity: "Severity",
   asset_id: "Asset",
   metric: "Metric",
-  state: "State",
+  state: "Operator state",
   condition: "Condition",
   duration_seconds: "Duration",
+};
+
+const EVENT_TYPE_LABELS = {
+  ScenarioStarted: "Scenario started",
+  UtilityPriceSpikeDetected: "Price spike",
+  DemandResponsePolicyEvaluated: "Policy evaluated",
+  LoadSheddingRequested: "Load shedding",
+  EquipmentCommandIssued: "Command issued",
 };
 
 function getStatusTone(alert) {
@@ -231,13 +250,39 @@ function formatDuration(seconds) {
   const days = Math.floor(total / 86400);
   const hours = Math.floor((total % 86400) / 3600);
   const minutes = Math.floor((total % 3600) / 60);
+  if (total < 60) return `${total}s`;
   if (days > 0) return `${days}d ${hours}h`;
   if (hours > 0) return `${hours}h ${minutes}m`;
   return `${minutes}m`;
 }
 
+function eventLabel(eventType) {
+  return EVENT_TYPE_LABELS[eventType] || eventType;
+}
+
+function shortId(value) {
+  if (!value) return "--";
+  return String(value).slice(0, 8);
+}
+
+function payloadSummary(payload = {}) {
+  const entries = Object.entries(payload)
+    .filter(([, value]) => value !== null && value !== undefined && typeof value !== "object")
+    .slice(0, 4);
+  if (entries.length === 0) return "No scalar payload fields";
+  return entries.map(([key, value]) => `${key}: ${value}`).join(" / ");
+}
+
 function severityRank(severity) {
   return { critical: 3, warning: 2, normal: 1 }[severity] || 0;
+}
+
+function actionRank(alert) {
+  if (alert.active_condition !== false && !alert.acknowledged && !alert.muted && !alert.shelved) return 5;
+  if (alert.active_condition === false && !alert.acknowledged) return 4;
+  if (alert.active_condition !== false && alert.acknowledged) return 3;
+  if (alert.muted || alert.shelved) return 2;
+  return 1;
 }
 
 function metricInfo(metric) {
@@ -285,6 +330,156 @@ function buildTelemetrySeries(rows) {
   return series;
 }
 
+const TOPOLOGY_STATUS_RANK = {
+  unknown: 0,
+  normal: 1,
+  warning: 2,
+  critical: 3,
+};
+
+const TOPOLOGY_LANES = [
+  [
+    { key: "ups-a", label: "UPS A", assets: ["ups-1"], metrics: ["ups_load_pct", "ups_battery_pct"] },
+    { key: "pdu-a", label: "PDU A", assets: ["pdu-1"], metrics: ["pdu_branch_load_pct"] },
+    { key: "rack-a", label: "Rack A", assets: ["rack-a01"], metrics: ["rack_temp_c", "rack_kw"] },
+  ],
+  [
+    { key: "ups-b", label: "UPS B", assets: ["ups-2"], metrics: ["ups_load_pct", "ups_battery_pct"] },
+    { key: "pdu-b", label: "PDU B", assets: ["pdu-2"], metrics: ["pdu_branch_load_pct"] },
+    { key: "rack-b", label: "Rack B", assets: ["rack-b02"], metrics: ["rack_temp_c", "rack_kw"] },
+  ],
+  [
+    {
+      key: "hvac",
+      label: "HVAC",
+      assets: ["hvac-1", "hvac-2"],
+      metrics: ["hvac_supply_temp_c", "hvac_return_temp_c", "hvac_fan_speed_pct"],
+    },
+    { key: "white-space", label: "White Space", assets: ["rack-a01", "rack-b02"], metrics: ["rack_temp_c"] },
+  ],
+];
+
+function worseTopologyStatus(left = "unknown", right = "unknown") {
+  return TOPOLOGY_STATUS_RANK[right] > TOPOLOGY_STATUS_RANK[left] ? right : left;
+}
+
+function buildSystemTopology(alerts, telemetryRows) {
+  const latestTelemetry = buildLatestTelemetry(telemetryRows);
+  const activeConditionAlerts = alerts.filter((alert) => alert.active_condition !== false && !alert.muted && !alert.shelved);
+  let overallStatus = "normal";
+
+  const lanes = TOPOLOGY_LANES.map((lane) => {
+    const nodes = lane.map((node) => {
+      let status = "unknown";
+      for (const assetId of node.assets) {
+        for (const metric of node.metrics) {
+          status = worseTopologyStatus(status, latestTelemetry.get(`${assetId}:${metric}`)?.status || "unknown");
+        }
+        for (const alert of activeConditionAlerts) {
+          if (alert.asset_id === assetId) {
+            status = worseTopologyStatus(status, alert.severity || "warning");
+          }
+        }
+      }
+      overallStatus = worseTopologyStatus(overallStatus, status);
+      return { ...node, status };
+    });
+
+    const laneStatus = nodes.reduce((status, node) => worseTopologyStatus(status, node.status), "normal");
+    return { key: nodes.map((node) => node.key).join("-"), nodes, status: laneStatus };
+  });
+
+  return {
+    lanes,
+    status: overallStatus,
+    liveConditionCount: activeConditionAlerts.length,
+    label: activeConditionAlerts.length > 0
+      ? `${activeConditionAlerts.length} live`
+      : overallStatus === "normal"
+        ? "Stable"
+        : statusLabel(overallStatus),
+  };
+}
+
+function durationForIncident(alert, nowMs = Date.now()) {
+  if (alert.active_condition === false) return alert.duration_seconds;
+  const start = new Date(alert.start_ts || alert.ts).getTime();
+  return Math.max(0, Math.floor((nowMs - start) / 1000));
+}
+
+function incidentStateLabel(alert) {
+  if (alert.shelved) return "Shelved";
+  if (alert.muted) return "Muted";
+  if (alert.active_condition === false && alert.acknowledged) return "Resolved";
+  if (alert.active_condition === false) return "Needs closeout";
+  if (alert.acknowledged) return "Acknowledged";
+  return "Needs action";
+}
+
+function nextStepForIncident(alert) {
+  if (alert.active_condition === false && !alert.acknowledged) {
+    return "Add closeout note";
+  }
+  if (alert.active_condition !== false && !alert.acknowledged && !alert.muted && !alert.shelved) {
+    return "Acknowledge or suppress";
+  }
+  if (alert.active_condition !== false && alert.acknowledged) {
+    return "Monitor until normal";
+  }
+  if (alert.muted || alert.shelved) {
+    return "Suppressed temporarily";
+  }
+  return "No operator action";
+}
+
+function formatReading(alert) {
+  const value = alert.latest_value ?? alert.current_value;
+  if (value == null || Number.isNaN(Number(value))) return "No live value";
+  return `${Number(value).toFixed(1)} ${alert.latest_unit || ""}`.trim();
+}
+
+function buildIncidentRecords(alerts) {
+  const incidents = new Map();
+  for (const alert of alerts) {
+    const current = incidents.get(alert.alert_key);
+    if (!current) {
+      incidents.set(alert.alert_key, { ...alert, event_count: 1 });
+      continue;
+    }
+
+    const currentTs = new Date(current.ts).getTime();
+    const alertTs = new Date(alert.ts).getTime();
+    const startTs = new Date(alert.start_ts || alert.ts).getTime();
+    const currentStartTs = new Date(current.start_ts || current.ts).getTime();
+    const endCandidates = [current.end_ts, alert.end_ts, current.ts, alert.ts]
+      .filter(Boolean)
+      .map((value) => new Date(value).getTime());
+    const latestEndTs = Math.max(...endCandidates);
+    const newest = alertTs >= currentTs ? { ...current, ...alert } : current;
+
+    incidents.set(alert.alert_key, {
+      ...newest,
+      event_count: current.event_count + 1,
+      start_ts: new Date(Math.min(currentStartTs, startTs)).toISOString(),
+      end_ts: Number.isFinite(latestEndTs) ? new Date(latestEndTs).toISOString() : newest.end_ts,
+      duration_seconds: Math.max(Number(current.duration_seconds) || 0, Number(alert.duration_seconds) || 0),
+      observation_count: Math.max(Number(current.observation_count) || 0, Number(alert.observation_count) || 0),
+      acknowledged: current.acknowledged || alert.acknowledged,
+      muted: current.muted || alert.muted,
+      shelved: current.shelved || alert.shelved,
+      acknowledgement: current.acknowledgement || alert.acknowledgement,
+    });
+  }
+
+  return Array.from(incidents.values()).sort((left, right) => {
+    const rankDelta = actionRank(right) - actionRank(left);
+    if (rankDelta !== 0) return rankDelta;
+    const severityDelta = severityRank(right.severity) - severityRank(left.severity);
+    if (severityDelta !== 0) return severityDelta;
+    return new Date(right.ts) - new Date(left.ts);
+  });
+}
+
 function Sparkline({ points = [] }) {
   const values = points.slice(-28).map((point) => Number(point.value)).filter(Number.isFinite);
   if (values.length < 2) {
@@ -329,6 +524,22 @@ function ProcessReadout({ point, metric, compact = false, trend = [] }) {
   );
 }
 
+function getAssetOperatingStatus(assetIds, metricKeys, latestTelemetry, liveAlarms) {
+  const ids = Array.isArray(assetIds) ? assetIds : [assetIds];
+  let status = "normal";
+  for (const assetId of ids) {
+    for (const metric of metricKeys) {
+      status = worseTopologyStatus(status, latestTelemetry.get(`${assetId}:${metric}`)?.status || "unknown");
+    }
+    for (const alert of liveAlarms) {
+      if (alert.asset_id === assetId) {
+        status = worseTopologyStatus(status, alert.severity || "warning");
+      }
+    }
+  }
+  return status;
+}
+
 function RackIntentBars({ tempPoint, loadPoint }) {
   const tempPct = Math.min(100, Math.max(0, (Number(tempPoint?.value || 0) / 38) * 100));
   const loadPct = Math.min(100, Math.max(0, (Number(loadPoint?.value || 0) / 9) * 100));
@@ -351,12 +562,14 @@ function DataCenterOverview({ alerts, telemetryRows, scenarioState }) {
   const telemetrySeries = useMemo(() => buildTelemetrySeries(telemetryRows), [telemetryRows]);
   const getPoint = (assetId, metric) => latestTelemetry.get(`${assetId}:${metric}`);
   const getTrend = (assetId, metric) => telemetrySeries.get(`${assetId}:${metric}`) || [];
-  const liveAlarms = alerts.filter((alert) => alert.active_condition && !alert.acknowledged);
-  const criticalCount = liveAlarms.filter((alert) => alert.severity === "critical").length;
+  const liveAlarms = alerts.filter((alert) => alert.active_condition !== false && !alert.acknowledged);
+  const activeConditions = alerts.filter((alert) => alert.active_condition !== false && !alert.muted && !alert.shelved);
+  const assetStatus = (assetIds, metrics) => getAssetOperatingStatus(assetIds, metrics, latestTelemetry, activeConditions);
+  const criticalCount = activeConditions.filter((alert) => alert.severity === "critical").length;
   const worstStatus =
     criticalCount > 0
       ? "critical"
-      : liveAlarms.some((alert) => alert.severity === "warning")
+      : activeConditions.some((alert) => alert.severity === "warning")
         ? "warning"
         : "normal";
 
@@ -405,18 +618,21 @@ function DataCenterOverview({ alerts, telemetryRows, scenarioState }) {
                 ["ups-2", "ups_load_pct", "ups_battery_pct", "UPS"],
                 ["pdu-1", "pdu_branch_load_pct", null, "PDU"],
                 ["pdu-2", "pdu_branch_load_pct", null, "PDU"],
-              ].map(([assetId, primaryMetric, secondaryMetric, assetType]) => (
-                <article className="equipment-symbol power-symbol" key={assetId}>
-                  <div className="symbol-topline">
-                    <strong>{assetId.toUpperCase()}</strong>
-                    <span>{assetType}</span>
-                  </div>
-                  <ProcessReadout point={getPoint(assetId, primaryMetric)} metric={primaryMetric} compact />
-                  {secondaryMetric ? (
-                    <ProcessReadout point={getPoint(assetId, secondaryMetric)} metric={secondaryMetric} compact />
-                  ) : null}
-                </article>
-              ))}
+              ].map(([assetId, primaryMetric, secondaryMetric, assetType]) => {
+                const status = assetStatus(assetId, [primaryMetric, secondaryMetric].filter(Boolean));
+                return (
+                  <article className={`equipment-symbol power-symbol operating-${status}`} key={assetId}>
+                    <div className="symbol-topline">
+                      <strong>{assetId.toUpperCase()}</strong>
+                      <span>{assetType} · {statusLabel(status)}</span>
+                    </div>
+                    <ProcessReadout point={getPoint(assetId, primaryMetric)} metric={primaryMetric} compact />
+                    {secondaryMetric ? (
+                      <ProcessReadout point={getPoint(assetId, secondaryMetric)} metric={secondaryMetric} compact />
+                    ) : null}
+                  </article>
+                );
+              })}
             </div>
           </div>
 
@@ -433,20 +649,41 @@ function DataCenterOverview({ alerts, telemetryRows, scenarioState }) {
               <span>Critical IT load</span>
             </div>
             <div className="rack-row">
-              {["rack-a01", "rack-b02"].map((assetId) => (
-                <article className="equipment-symbol rack-symbol" key={assetId}>
-                  <RackIntentBars
-                    tempPoint={getPoint(assetId, "rack_temp_c")}
-                    loadPoint={getPoint(assetId, "rack_kw")}
-                  />
-                  <div className="symbol-topline">
-                    <strong>{assetId.toUpperCase()}</strong>
-                    <span>Rack</span>
-                  </div>
-                  <ProcessReadout point={getPoint(assetId, "rack_temp_c")} metric="rack_temp_c" compact />
-                  <ProcessReadout point={getPoint(assetId, "rack_kw")} metric="rack_kw" compact />
-                </article>
-              ))}
+              {[
+                { id: "rack-a01", label: "Rack A01", derived: false },
+                { id: "rack-b02", label: "Rack B02", derived: false },
+                { id: "white-space", label: "White Space", derived: true },
+              ].map((asset) => {
+                const sourceAssets = asset.derived ? ["rack-a01", "rack-b02"] : asset.id;
+                const metrics = asset.derived ? ["rack_temp_c"] : ["rack_temp_c", "rack_kw"];
+                const status = assetStatus(sourceAssets, metrics);
+                const tempPoint = asset.derived
+                  ? [getPoint("rack-a01", "rack_temp_c"), getPoint("rack-b02", "rack_temp_c")]
+                    .filter(Boolean)
+                    .sort((left, right) => severityRank(right.status) - severityRank(left.status) || Number(right.value) - Number(left.value))[0]
+                  : getPoint(asset.id, "rack_temp_c");
+                const loadPoint = asset.derived ? null : getPoint(asset.id, "rack_kw");
+                return (
+                  <article
+                    className={`equipment-symbol rack-symbol ${asset.derived ? "white-space-symbol" : ""} operating-${status}`}
+                    key={asset.id}
+                  >
+                    {!asset.derived ? (
+                      <RackIntentBars tempPoint={tempPoint} loadPoint={loadPoint} />
+                    ) : null}
+                    <div className="symbol-topline">
+                      <strong>{asset.label.toUpperCase()}</strong>
+                      <span>{asset.derived ? `Room · ${statusLabel(status)}` : `Rack · ${statusLabel(status)}`}</span>
+                    </div>
+                    <ProcessReadout point={tempPoint} metric="rack_temp_c" compact />
+                    {asset.derived ? (
+                      <small className="derived-status-note">Worst rack inlet across Rack A01 and Rack B02</small>
+                    ) : (
+                      <ProcessReadout point={loadPoint} metric="rack_kw" compact />
+                    )}
+                  </article>
+                );
+              })}
             </div>
           </div>
 
@@ -466,11 +703,12 @@ function DataCenterOverview({ alerts, telemetryRows, scenarioState }) {
               {["hvac-1", "hvac-2"].map((assetId) => {
                 const supply = getPoint(assetId, "hvac_supply_temp_c");
                 const ret = getPoint(assetId, "hvac_return_temp_c");
+                const status = assetStatus(assetId, ["hvac_supply_temp_c", "hvac_return_temp_c", "hvac_fan_speed_pct"]);
                 return (
-                <article className="equipment-symbol ahu-symbol" key={assetId}>
+                <article className={`equipment-symbol ahu-symbol operating-${status}`} key={assetId}>
                   <div className="symbol-topline">
                     <strong>{assetId.toUpperCase()}</strong>
-                    <span>Air handler</span>
+                    <span>Air handler · {statusLabel(status)}</span>
                   </div>
                   <ProcessReadout point={supply} metric="hvac_supply_temp_c" compact />
                   <ProcessReadout point={ret} metric="hvac_return_temp_c" compact />
@@ -487,7 +725,7 @@ function DataCenterOverview({ alerts, telemetryRows, scenarioState }) {
   );
 }
 
-function AlarmHistory({ alerts, lastUpdatedAt }) {
+function IncidentLedger({ incidents, lastUpdatedAt }) {
   const [historySearch, setHistorySearch] = useState("");
   const [historySeverity, setHistorySeverity] = useState("all");
   const [historyCondition, setHistoryCondition] = useState("all");
@@ -513,7 +751,7 @@ function AlarmHistory({ alerts, lastUpdatedAt }) {
         "30d": nowMs - 30 * 24 * 60 * 60 * 1000,
         all: 0,
       }[historyWindow] || 0;
-    return [...alerts]
+    return [...incidents]
       .filter((alert) => {
         const tone = getStatusTone(alert);
         const condition = alert.active_condition === false ? "cleared" : "active";
@@ -560,7 +798,7 @@ function AlarmHistory({ alerts, lastUpdatedAt }) {
             : String(leftValue).localeCompare(String(rightValue));
         return sortDirection === "asc" ? comparison : comparison * -1;
       });
-  }, [alerts, historyCondition, historySearch, historySeverity, historyState, historyWindow, nowMs, sortDirection, sortKey]);
+  }, [historyCondition, historySearch, historySeverity, historyState, historyWindow, incidents, nowMs, sortDirection, sortKey]);
 
   function updateSort(nextKey) {
     if (nextKey === sortKey) {
@@ -572,21 +810,19 @@ function AlarmHistory({ alerts, lastUpdatedAt }) {
   }
 
   function durationFor(alert) {
-    if (alert.active_condition === false) return alert.duration_seconds;
-    const start = new Date(alert.start_ts || alert.ts).getTime();
-    return Math.max(0, Math.floor((nowMs - start) / 1000));
+    return durationForIncident(alert, nowMs);
   }
 
   return (
     <section className="history-page">
       <div className="card-header">
         <div>
-          <p className="eyebrow">Alarm History</p>
-          <h2>Sortable alarm event ledger.</h2>
-          <p>Review recent events by asset, severity, operator state, and whether the source condition is still active.</p>
+          <p className="eyebrow">Incident Ledger</p>
+          <h2>One row per operational issue.</h2>
+          <p>Repeated alert events are collapsed by alert key so operators can see what happened, when it started, when it cleared, and how it was handled.</p>
         </div>
         <div className="history-count">
-          <span>Rows</span>
+          <span>Incidents</span>
           <strong>{rows.length}</strong>
         </div>
         <div className="history-live-card">
@@ -602,7 +838,7 @@ function AlarmHistory({ alerts, lastUpdatedAt }) {
           <input
             value={historySearch}
             onChange={(event) => setHistorySearch(event.target.value)}
-            placeholder="asset, metric, key, message"
+            placeholder="asset, metric, incident key, message"
           />
         </label>
         <label className="field">
@@ -644,7 +880,7 @@ function AlarmHistory({ alerts, lastUpdatedAt }) {
       </div>
 
       <div className="history-sortbar">
-        {Object.entries(SORT_LABELS).map(([key, label]) => (
+        {Object.entries(INCIDENT_SORT_LABELS).map(([key, label]) => (
           <button
             className={sortKey === key ? "active" : ""}
             key={key}
@@ -660,7 +896,7 @@ function AlarmHistory({ alerts, lastUpdatedAt }) {
         <table className="history-table">
           <thead>
             <tr>
-              <th>Time</th>
+              <th>Last changed</th>
               <th>Start</th>
               <th>End</th>
               <th>Duration</th>
@@ -670,6 +906,7 @@ function AlarmHistory({ alerts, lastUpdatedAt }) {
               <th>State</th>
               <th>Condition</th>
               <th>Value</th>
+              <th>Events</th>
               <th>Ack</th>
               <th>Message</th>
             </tr>
@@ -692,7 +929,8 @@ function AlarmHistory({ alerts, lastUpdatedAt }) {
                   <td><span className={`pill pill-${alert.severity}`}>{alert.severity}</span></td>
                   <td><span className={`pill pill-${tone}`}>{tone}</span></td>
                   <td><span className={`pill pill-${conditionTone}`}>{conditionTone}</span></td>
-                  <td>{Number(alert.latest_value ?? alert.current_value).toFixed(1)} {alert.latest_unit || ""}</td>
+                  <td>{formatReading(alert)}</td>
+                  <td>{alert.event_count || 1}</td>
                   <td>
                     {alert.acknowledgement ? (
                       <button className="details-button" onClick={() => setSelectedAcknowledgement(alert)}>
@@ -746,10 +984,293 @@ function AlarmHistory({ alerts, lastUpdatedAt }) {
   );
 }
 
+function EventTimeline({ events, lastUpdatedAt }) {
+  const [eventSearch, setEventSearch] = useState("");
+  const [eventType, setEventType] = useState("all");
+  const [selectedEvent, setSelectedEvent] = useState(null);
+
+  const eventTypes = useMemo(
+    () => Array.from(new Set(events.map((event) => event.event_type))).sort(),
+    [events]
+  );
+  const visibleEvents = useMemo(() => {
+    const search = eventSearch.trim().toLowerCase();
+    return events.filter((event) => {
+      const matchesType = eventType === "all" || event.event_type === eventType;
+      const searchable = [
+        event.event_type,
+        event.asset_id,
+        event.asset_type,
+        event.scenario_id,
+        event.correlation_id,
+        event.source,
+        JSON.stringify(event.payload || {}),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return matchesType && (!search || searchable.includes(search));
+    });
+  }, [eventSearch, eventType, events]);
+
+  const eventsByCorrelation = useMemo(() => {
+    const grouped = new Map();
+    for (const event of visibleEvents) {
+      const key = event.correlation_id || "uncorrelated";
+      const group = grouped.get(key) || [];
+      group.push(event);
+      grouped.set(key, group);
+    }
+    return Array.from(grouped.entries())
+      .map(([correlationId, rows]) => ({
+        correlationId,
+        rows: rows.sort((left, right) => new Date(left.occurred_at) - new Date(right.occurred_at)),
+      }))
+      .sort((left, right) => {
+        const leftTime = new Date(left.rows[0]?.occurred_at || 0).getTime();
+        const rightTime = new Date(right.rows[0]?.occurred_at || 0).getTime();
+        return rightTime - leftTime;
+      });
+  }, [visibleEvents]);
+
+  return (
+    <section className="events-page">
+      <div className="card-header">
+        <div>
+          <p className="eyebrow">Domain Events</p>
+          <h2>Operational timeline from the PostgreSQL event store.</h2>
+          <p>Review scenario decisions, commands, and correlation chains alongside the telemetry dashboards.</p>
+        </div>
+        <div className="history-count">
+          <span>Events</span>
+          <strong>{visibleEvents.length}</strong>
+        </div>
+        <div className="history-live-card">
+          <span>Live refresh</span>
+          <strong>5s</strong>
+          <small>Updated {formatTime(lastUpdatedAt)}</small>
+        </div>
+      </div>
+
+      <div className="history-toolbar">
+        <label className="field field-wide">
+          <span>Search</span>
+          <input
+            value={eventSearch}
+            onChange={(event) => setEventSearch(event.target.value)}
+            placeholder="event type, asset, scenario, correlation"
+          />
+        </label>
+        <label className="field">
+          <span>Event type</span>
+          <select value={eventType} onChange={(event) => setEventType(event.target.value)}>
+            <option value="all">All</option>
+            {eventTypes.map((type) => (
+              <option value={type} key={type}>{eventLabel(type)}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      {visibleEvents.length === 0 ? (
+        <div className="empty-state">No domain events match the current filters.</div>
+      ) : (
+        <div className="event-groups">
+          {eventsByCorrelation.map((group) => (
+            <article className="event-group" key={group.correlationId}>
+              <div className="event-group-header">
+                <div>
+                  <span>Correlation</span>
+                  <strong>{shortId(group.correlationId)}</strong>
+                </div>
+                <small>{group.rows.length} event{group.rows.length === 1 ? "" : "s"}</small>
+              </div>
+              <div className="event-timeline">
+                {group.rows.map((event) => (
+                  <button
+                    className="event-row"
+                    key={event.event_id}
+                    onClick={() => setSelectedEvent(event)}
+                  >
+                    <span className="event-dot" />
+                    <span className="event-time">{formatTime(event.occurred_at)}</span>
+                    <strong>{eventLabel(event.event_type)}</strong>
+                    <small>{event.asset_id || event.scenario_id || event.stream_id}</small>
+                    <em>{payloadSummary(event.payload)}</em>
+                  </button>
+                ))}
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+
+      {selectedEvent ? (
+        <div className="modal-backdrop" role="presentation">
+          <section className="action-modal event-detail-modal" role="dialog" aria-modal="true" aria-labelledby="event-modal-title">
+            <div className="card-header">
+              <div>
+                <h2 id="event-modal-title">{eventLabel(selectedEvent.event_type)}</h2>
+                <p>{selectedEvent.stream_id} v{selectedEvent.stream_version}</p>
+              </div>
+            </div>
+            <dl className="ack-detail-list">
+              <div><dt>Occurred</dt><dd>{formatDateTime(selectedEvent.occurred_at)}</dd></div>
+              <div><dt>Source</dt><dd>{selectedEvent.source}</dd></div>
+              <div><dt>Asset</dt><dd>{selectedEvent.asset_id || "none"}</dd></div>
+              <div><dt>Scenario</dt><dd>{selectedEvent.scenario_id || "none"}</dd></div>
+              <div><dt>Correlation</dt><dd>{selectedEvent.correlation_id}</dd></div>
+              <div><dt>Causation</dt><dd>{selectedEvent.causation_id || "none"}</dd></div>
+            </dl>
+            <pre className="event-payload">{JSON.stringify(selectedEvent.payload || {}, null, 2)}</pre>
+            <div className="modal-actions">
+              <button className="ghost-button" onClick={() => setSelectedEvent(null)}>
+                Close
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function OperatorAttention({
+  attentionQueue,
+  activeAlerts,
+  loading,
+  busyKey,
+  onOpenAction,
+  onAcknowledgeAll,
+  onRefresh,
+  onOpenLedger,
+}) {
+  const visibleQueue = attentionQueue.slice(0, 5);
+
+  return (
+    <section className="attention-panel">
+      <div className="card-header">
+        <div>
+          <p className="eyebrow">Operator Work Queue</p>
+          <h2>Issues that need a human decision.</h2>
+          <p>Repeated alert events are collapsed. Cleared incidents only stay here when they still need a closeout note.</p>
+        </div>
+        <div className="header-actions">
+          <button className="ghost-button" onClick={onAcknowledgeAll} disabled={loading || activeAlerts.length === 0}>
+            Acknowledge active
+          </button>
+          <button className="ghost-button" onClick={onRefresh} disabled={loading}>
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      {visibleQueue.length === 0 ? (
+        <div className="empty-state compact-empty">
+          No active incidents or unresolved closeouts. The operator queue is clear.
+        </div>
+      ) : (
+        <div className="attention-list">
+          {visibleQueue.map((alert) => {
+            const tone = getStatusTone(alert);
+            const conditionTone = alert.active_condition === false ? "cleared" : "active";
+            return (
+              <article className={`attention-item attention-${alert.severity}`} key={alert.alert_key}>
+                <div className="attention-main">
+                  <div className="alarm-tags">
+                    <span className={`pill pill-${alert.severity}`}>{alert.severity}</span>
+                    <span className={`pill pill-${tone}`}>{incidentStateLabel(alert)}</span>
+                    <span className={`pill pill-${conditionTone}`}>{conditionTone}</span>
+                  </div>
+                  <h3>{alert.asset_id}</h3>
+                  <p>{alert.message}</p>
+                  <div className="attention-why">
+                    <span>Why: {metricInfo(alert.metric).label} crossed {Number(alert.threshold_value).toFixed(1)}</span>
+                    <span>When: {formatDateTime(alert.start_ts || alert.ts)}</span>
+                    <span>Resolution: {alert.active_condition === false ? `cleared ${formatDateTime(alert.end_ts)}` : "still active"}</span>
+                  </div>
+                </div>
+                <div className="attention-status">
+                  <strong>{formatReading(alert)}</strong>
+                  <span>{nextStepForIncident(alert)}</span>
+                  <small>{formatDuration(durationForIncident(alert))} duration</small>
+                </div>
+                <div className="attention-actions">
+                  <button
+                    onClick={() => onOpenAction(alert, "acknowledge")}
+                    disabled={busyKey === `acknowledge:${alert.alert_key}`}
+                  >
+                    {alert.active_condition === false ? "Close out" : "Acknowledge"}
+                  </button>
+                  {alert.active_condition !== false ? (
+                    <>
+                      <button
+                        onClick={() => onOpenAction(alert, alert.muted ? "unmute" : "mute")}
+                        disabled={busyKey === `${alert.muted ? "unmute" : "mute"}:${alert.alert_key}`}
+                      >
+                        {alert.muted ? "Unmute" : "Mute 30m"}
+                      </button>
+                      <button
+                        onClick={() => onOpenAction(alert, alert.shelved ? "unshelve" : "shelve")}
+                        disabled={busyKey === `${alert.shelved ? "unshelve" : "shelve"}:${alert.alert_key}`}
+                      >
+                        {alert.shelved ? "Unshelve" : "Shelve 2h"}
+                      </button>
+                    </>
+                  ) : null}
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+
+      {attentionQueue.length > visibleQueue.length ? (
+        <button className="ledger-link" onClick={onOpenLedger}>
+          View {attentionQueue.length - visibleQueue.length} more incident{attentionQueue.length - visibleQueue.length === 1 ? "" : "s"} in the ledger
+        </button>
+      ) : null}
+    </section>
+  );
+}
+
+function EventBrief({ events, onOpenEvents }) {
+  return (
+    <section className="event-brief">
+      <div className="card-header">
+        <div>
+          <p className="eyebrow">Event Timeline</p>
+          <h2>Latest scenario decisions and commands.</h2>
+          <p>Domain events explain why simulator behavior changed and which asset was commanded.</p>
+        </div>
+        <button className="ghost-button" onClick={onOpenEvents}>
+          Open events
+        </button>
+      </div>
+
+      {events.length === 0 ? (
+        <div className="empty-state compact-empty">No domain events recorded yet.</div>
+      ) : (
+        <div className="event-brief-list">
+          {events.map((event) => (
+            <button className="event-brief-row" key={event.event_id} onClick={onOpenEvents}>
+              <span>{formatTime(event.occurred_at)}</span>
+              <strong>{eventLabel(event.event_type)}</strong>
+              <small>{event.asset_id || event.scenario_id || shortId(event.correlation_id)}</small>
+              <em>{payloadSummary(event.payload)}</em>
+            </button>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 export default function App() {
   const [summary, setSummary] = useState(null);
   const [alerts, setAlerts] = useState([]);
   const [telemetryRows, setTelemetryRows] = useState([]);
+  const [events, setEvents] = useState([]);
   const [scenarioState, setScenarioState] = useState({ active: false, scenario: null });
   const [activeView, setActiveView] = useState("console");
   const [autoClearRectified, setAutoClearRectified] = useState(true);
@@ -769,11 +1290,13 @@ export default function App() {
   const deferredAssetFilter = useDeferredValue(assetFilter);
 
   async function refreshDashboard() {
-    const [summaryPayload, alertsPayload, scenarioPayload, telemetryPayload] = await Promise.all([
+    const eventsPromise = readJson("/events/recent?limit=100").catch(() => ({ rows: [] }));
+    const [summaryPayload, alertsPayload, scenarioPayload, telemetryPayload, eventsPayload] = await Promise.all([
       readJson("/summary"),
       readJson("/alerts/recent?limit=250"),
       readJson("/simulator/scenario"),
       readJson("/telemetry/recent?limit=200"),
+      eventsPromise,
     ]);
 
     startTransition(() => {
@@ -781,6 +1304,7 @@ export default function App() {
       setAlerts(alertsPayload.rows || []);
       setScenarioState(scenarioPayload);
       setTelemetryRows(telemetryPayload.rows || []);
+      setEvents(eventsPayload.rows || []);
       setLastUpdatedAt(new Date().toISOString());
       setLoading(false);
     });
@@ -805,13 +1329,17 @@ export default function App() {
     return () => window.clearInterval(timer);
   }, []);
 
-  const visibleAlerts = alerts.filter((alert) => {
+  const alertIncidents = useMemo(() => buildIncidentRecords(alerts), [alerts]);
+  const recentEvents = events.slice(0, 5);
+
+  const visibleAlerts = alertIncidents.filter((alert) => {
     const tone = getStatusTone(alert);
     const autoCleared =
       autoClearRectified &&
       stateFilter !== "cleared" &&
       stateFilter !== "cleared-unacknowledged" &&
-      alert.active_condition === false;
+      alert.active_condition === false &&
+      alert.acknowledged;
     const matchesSeverity =
       severityFilter === "all" || alert.severity === severityFilter;
     const matchesState =
@@ -827,12 +1355,16 @@ export default function App() {
   });
 
   const activeAlertsByKey = new Map();
-  for (const alert of alerts) {
+  for (const alert of alertIncidents) {
     if (alert.active_condition !== false && !alert.acknowledged && !alert.muted && !alert.shelved) {
       activeAlertsByKey.set(alert.alert_key, alert);
     }
   }
-  const activeAlerts = Array.from(activeAlertsByKey.values());
+  const activeAlerts = Array.from(activeAlertsByKey.values()).sort((left, right) => {
+    const severityDelta = severityRank(right.severity) - severityRank(left.severity);
+    if (severityDelta !== 0) return severityDelta;
+    return new Date(right.ts) - new Date(left.ts);
+  });
 
   const overviewStats = {
     critical: 0,
@@ -840,9 +1372,11 @@ export default function App() {
     acknowledged: 0,
     suppressed: 0,
     cleared: 0,
+    needsCloseout: 0,
   };
-  for (const alert of alerts) {
+  for (const alert of alertIncidents) {
     if (alert.active_condition === false) overviewStats.cleared += 1;
+    if (alert.active_condition === false && !alert.acknowledged) overviewStats.needsCloseout += 1;
     if (alert.severity === "critical" && alert.active_condition !== false) overviewStats.critical += 1;
     if (alert.severity === "warning" && alert.active_condition !== false) overviewStats.warning += 1;
     if (alert.acknowledged) overviewStats.acknowledged += 1;
@@ -850,7 +1384,15 @@ export default function App() {
   }
 
   const assetInventory = summary?.asset_inventory || [];
-  const clearedUnacknowledged = alerts.filter((alert) => alert.active_condition === false && !alert.acknowledged);
+  const clearedUnacknowledged = alertIncidents.filter((alert) => alert.active_condition === false && !alert.acknowledged);
+  const attentionQueue = [...activeAlerts, ...clearedUnacknowledged]
+    .sort((left, right) => {
+      const rankDelta = actionRank(right) - actionRank(left);
+      if (rankDelta !== 0) return rankDelta;
+      const severityDelta = severityRank(right.severity) - severityRank(left.severity);
+      if (severityDelta !== 0) return severityDelta;
+      return new Date(right.ts) - new Date(left.ts);
+    });
   const telemetryStatusCounts = telemetryRows.reduce(
     (counts, row) => {
       counts[row.status] = (counts[row.status] || 0) + 1;
@@ -862,6 +1404,10 @@ export default function App() {
     if (!latest || new Date(row.ts) > new Date(latest)) return row.ts;
     return latest;
   }, null);
+  const systemTopology = useMemo(
+    () => buildSystemTopology(alertIncidents, telemetryRows),
+    [alertIncidents, telemetryRows]
+  );
   const totalAssets = assetInventory.reduce((total, asset) => total + Number(asset.asset_count || 0), 0);
 
   async function triggerScenario(scenario) {
@@ -874,7 +1420,10 @@ export default function App() {
       await readJson(`/simulator/scenarios/${scenario.key}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ duration_seconds: durationSeconds }),
+        body: JSON.stringify({
+          duration_seconds: durationSeconds,
+          ...(scenario.payload || {}),
+        }),
       });
       await refreshDashboard();
       setBanner({
@@ -1001,38 +1550,31 @@ export default function App() {
       <header className="hero">
         <div>
           <p className="eyebrow">DC Twin Operator Console</p>
-          <h1>Supervisory control with a sharper surface.</h1>
+          <h1>Operator-first incident view.</h1>
           <p className="hero-copy">
-            A Tesla-inspired control room for live telemetry, fast alarm action, and scenario-driven
-            testing across a 2N data center model.
+            Live telemetry, scenario controls, event timelines, and a deduplicated alarm queue for
+            deciding what needs action now.
           </p>
         </div>
         <div className="hero-status">
-          <div className="hero-brand-panel" aria-label="System topology snapshot">
+          <div className={`hero-brand-panel status-${systemTopology.status}`} aria-label="System topology snapshot">
             <div className="brand-panel-header">
               <span>2N Digital Twin</span>
-              <strong>{activeAlerts.length === 0 ? "Stable" : `${activeAlerts.length} live`}</strong>
+              <strong>{systemTopology.label}</strong>
             </div>
             <div className="brand-lanes">
-              <div className="brand-lane">
-                <i>UPS A</i>
-                <b />
-                <i>PDU A</i>
-                <b />
-                <i>Rack A</i>
-              </div>
-              <div className="brand-lane">
-                <i>UPS B</i>
-                <b />
-                <i>PDU B</i>
-                <b />
-                <i>Rack B</i>
-              </div>
-              <div className="brand-lane cooling">
-                <i>HVAC</i>
-                <b />
-                <i>White Space</i>
-              </div>
+              {systemTopology.lanes.map((lane) => (
+                <div className={`brand-lane status-${lane.status}`} key={lane.key}>
+                  {lane.nodes.map((node, index) => (
+                    <React.Fragment key={node.key}>
+                      {index > 0 ? <b className={`status-${worseTopologyStatus(lane.nodes[index - 1].status, node.status)}`} /> : null}
+                      <i className={`status-${node.status}`} title={`${node.label}: ${statusLabel(node.status)}`}>
+                        {node.label}
+                      </i>
+                    </React.Fragment>
+                  ))}
+                </div>
+              ))}
             </div>
           </div>
           <div className={`banner banner-${banner.tone}`}>{banner.text}</div>
@@ -1060,41 +1602,63 @@ export default function App() {
           className={activeView === "history" ? "active" : ""}
           onClick={() => setActiveView("history")}
         >
-          Alarm History
+          Incident Ledger
+        </button>
+        <button
+          className={activeView === "events" ? "active" : ""}
+          onClick={() => setActiveView("events")}
+        >
+          Events
         </button>
       </nav>
 
       {activeView === "overview" ? (
         <DataCenterOverview
-          alerts={alerts}
+          alerts={alertIncidents}
           telemetryRows={telemetryRows}
           scenarioState={scenarioState}
         />
       ) : activeView === "history" ? (
-        <AlarmHistory alerts={alerts} lastUpdatedAt={lastUpdatedAt} />
+        <IncidentLedger incidents={alertIncidents} lastUpdatedAt={lastUpdatedAt} />
+      ) : activeView === "events" ? (
+        <EventTimeline events={events} lastUpdatedAt={lastUpdatedAt} />
       ) : (
         <>
           <section className="summary-grid">
             <article className="summary-card summary-hot">
-              <span>Live critical</span>
-              <strong>{overviewStats.critical}</strong>
-              <small>Condition still active</small>
+              <span>Needs action</span>
+              <strong>{attentionQueue.length}</strong>
+              <small>Active or awaiting closeout</small>
             </article>
             <article className="summary-card">
-              <span>Live warning</span>
-              <strong>{overviewStats.warning}</strong>
-              <small>Current warning conditions</small>
+              <span>Active now</span>
+              <strong>{activeAlerts.length}</strong>
+              <small>Current unsuppressed incidents</small>
             </article>
             <article className="summary-card">
-              <span>Acknowledged</span>
-              <strong>{overviewStats.acknowledged}</strong>
-              <small>Tracked by an operator</small>
+              <span>Needs closeout</span>
+              <strong>{overviewStats.needsCloseout}</strong>
+              <small>Cleared, missing note</small>
             </article>
             <article className="summary-card">
-              <span>Cleared</span>
-              <strong>{overviewStats.cleared}</strong>
-              <small>Condition returned normal</small>
+              <span>Domain events</span>
+              <strong>{events.length}</strong>
+              <small>Recent event-store rows</small>
             </article>
+          </section>
+
+          <section className="operator-workbench">
+            <OperatorAttention
+              attentionQueue={attentionQueue}
+              activeAlerts={activeAlerts}
+              loading={loading}
+              busyKey={busyKey}
+              onOpenAction={openActionModal}
+              onAcknowledgeAll={openAcknowledgeAllModal}
+              onRefresh={refreshDashboard}
+              onOpenLedger={() => setActiveView("history")}
+            />
+            <EventBrief events={recentEvents} onOpenEvents={() => setActiveView("events")} />
           </section>
 
           <section className="layout-grid">
@@ -1248,8 +1812,8 @@ export default function App() {
           <section className="alarm-section">
             <div className="card-header">
               <div>
-                <h2>Alarm command surface</h2>
-                <p>Filter recent alerts, then acknowledge, mute, or shelve directly from the console.</p>
+                <h2>Detailed incident controls</h2>
+                <p>Filter deduplicated incidents when you need the full action surface. Resolved and acknowledged items stay in the ledger.</p>
               </div>
               <div className="header-actions">
                 <label className="toggle-control">
@@ -1303,7 +1867,7 @@ export default function App() {
             {loading ? (
               <div className="empty-state">Loading the control surface...</div>
             ) : visibleAlerts.length === 0 ? (
-              <div className="empty-state">No alerts match the current filters.</div>
+              <div className="empty-state">No incidents match the current filters.</div>
             ) : (
               <div className="alarm-list">
                 {visibleAlerts.map((alert) => {
@@ -1322,18 +1886,20 @@ export default function App() {
                           <p>{alert.message}</p>
                         </div>
                         <div className="alarm-reading">
-                          <strong>{Number(alert.latest_value ?? alert.current_value).toFixed(1)}</strong>
+                          <strong>{formatReading(alert)}</strong>
                           <span>{alert.metric}</span>
                           <small>limit {Number(alert.threshold_value).toFixed(1)}</small>
                         </div>
                       </div>
 
                       <div className="alarm-meta">
-                        <span>Key: {alert.alert_key}</span>
-                        <span>Observed {alert.observation_count}x</span>
-                        <span>Condition {alert.condition_status || "unknown"}</span>
-                        <span>Muted until {formatRelativeUntil(alert.muted_until)}</span>
-                        <span>Shelved until {formatRelativeUntil(alert.shelved_until)}</span>
+                        <span>Started {formatDateTime(alert.start_ts || alert.ts)}</span>
+                        <span>{alert.active_condition === false ? `Cleared ${formatDateTime(alert.end_ts)}` : "Still active"}</span>
+                        <span>{formatDuration(durationForIncident(alert))} duration</span>
+                        <span>{alert.event_count || 1} repeated event{(alert.event_count || 1) === 1 ? "" : "s"}</span>
+                        <span>Next: {nextStepForIncident(alert)}</span>
+                        {alert.muted ? <span>Muted until {formatRelativeUntil(alert.muted_until)}</span> : null}
+                        {alert.shelved ? <span>Shelved until {formatRelativeUntil(alert.shelved_until)}</span> : null}
                       </div>
 
                       <div className="alarm-actions">

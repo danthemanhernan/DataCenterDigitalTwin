@@ -11,6 +11,7 @@ from typing import Any
 import clickhouse_connect
 from dotenv import load_dotenv
 
+from .domain_events import emit_domain_event
 from .logic import determine_alarm
 
 load_dotenv()
@@ -374,6 +375,48 @@ def insert_scores(
             "risk_band",
         ],
     )
+    for row in scored_rows:
+        risk_event = emit_domain_event(
+            event_type="MaintenanceRiskScored",
+            stream_id=f"asset:{row['asset_type']}:{row['asset_id']}",
+            source=source,
+            asset_id=row["asset_id"],
+            asset_type=row["asset_type"],
+            payload={
+                "metric": row["metric"],
+                "maintenance_risk_score": row["maintenance_risk_score"],
+                "risk_band": row["risk_band"],
+                "model_version": MODEL_VERSION,
+                "anomaly_zscore": row["anomaly_zscore"],
+                "trend_component": row["trend_component"],
+            },
+            metadata={
+                "lookback_hours": lookback_hours,
+                "window_minutes": window_minutes,
+                "telemetry_rows": telemetry_rows,
+            },
+            idempotency_key=(
+                f"maintenance:{generated_at.isoformat()}:{row['asset_type']}:{row['asset_id']}:{row['metric']}"
+            ),
+        )
+        if row["risk_band"] == "high":
+            emit_domain_event(
+                event_type="MaintenanceRecommended",
+                stream_id=f"asset:{row['asset_type']}:{row['asset_id']}",
+                source=source,
+                asset_id=row["asset_id"],
+                asset_type=row["asset_type"],
+                causation_id=risk_event.event_id if risk_event else None,
+                payload={
+                    "metric": row["metric"],
+                    "maintenance_risk_score": row["maintenance_risk_score"],
+                    "recommendation": "inspect_asset",
+                },
+                metadata={"model_version": MODEL_VERSION},
+                idempotency_key=(
+                    f"maintenance-recommendation:{generated_at.isoformat()}:{row['asset_type']}:{row['asset_id']}:{row['metric']}"
+                ),
+            )
 
 
 def run_cycle(client: Any, args: argparse.Namespace) -> list[dict[str, Any]]:

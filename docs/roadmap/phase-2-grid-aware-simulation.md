@@ -16,7 +16,7 @@ Implement one end-to-end demand-response scenario in `DataCenterDigitalTwin`:
 - [x] Store power, GPU, cooling, KPI, and alert telemetry in ClickHouse
 - [ ] Emit durable domain events for the price spike, policy decision, command, equipment response, alert lifecycle, and recovery
 - [ ] Correlate ClickHouse telemetry windows with event-store records using shared asset, scenario, correlation, and causation identifiers
-- [ ] Display the event timeline in Grafana
+- [x] Display the event timeline in Grafana
 - [ ] Surface the active alert and recovery status in the React operator console
 - [x] Expose the scenario trigger and reset controls through FastAPI
 
@@ -91,7 +91,7 @@ ClickHouse remains the analytical system of record for high-volume numeric proce
 
 - [ ] Store raw and normalized equipment telemetry in ClickHouse
 - [ ] Design high-performance telemetry tables using appropriate partitioning, ordering keys, codecs, and retention policies
-- [ ] Preserve event time, ingestion time, site, zone, asset class, asset ID, metric name, engineering unit, quality, and source metadata
+- [x] Preserve event time, ingestion time, site, zone, asset class, asset ID, metric name, engineering unit, quality, and source metadata
 - [ ] Add shared `correlation_id`, `scenario_id`, and `event_id` fields where telemetry is associated with a domain event
 - [ ] Create materialized views for minute, hourly, and daily rollups
 - [ ] Create feature-oriented views for predictive-maintenance windows
@@ -127,29 +127,29 @@ Use a separate durable event store for lower-volume, higher-value facts describi
 ### Initial Domain Events
 
 - [x] `ScenarioStarted`
-- [ ] `ScenarioCompleted`
+- [x] `ScenarioCompleted`
 - [x] `UtilityPriceSpikeDetected`
 - [x] `DemandResponsePolicyEvaluated`
 - [x] `LoadSheddingRequested`
 - [x] `EquipmentCommandIssued`
-- [ ] `EquipmentStateChanged`
-- [ ] `ThresholdExceeded`
-- [ ] `AlertRaised`
-- [ ] `AlertAcknowledged`
+- [x] `EquipmentStateChanged`
+- [x] `ThresholdExceeded`
+- [x] `AlertRaised`
+- [x] `AlertAcknowledged`
 - [ ] `AlertCleared`
 - [ ] `AnomalyDetected`
-- [ ] `MaintenanceRiskScored`
-- [ ] `MaintenanceRecommended`
+- [x] `MaintenanceRiskScored`
+- [x] `MaintenanceRecommended`
 - [ ] `MaintenanceWorkStarted`
 - [ ] `MaintenanceCompleted`
 - [ ] `EquipmentFailureSimulated`
-- [ ] `EquipmentRecovered`
+- [x] `EquipmentRecovered`
 
 ### Event Producers and Projectors
 
 - [x] Add a reusable Python event-envelope package shared by API and workers
 - [x] Add an event-writer abstraction so application code does not depend directly on PostgreSQL or EventStoreDB APIs
-- [ ] Emit events from scenario control, alerting, maintenance scoring, operator actions, and simulated equipment state transitions
+- [x] Emit events from scenario control, alerting, maintenance scoring, operator actions, and simulated equipment state transitions
 - [ ] Build an event projector that creates an asset timeline read model
 - [ ] Build an event projector that creates alert-lifecycle views
 - [ ] Build an event projector that creates maintenance-history views
@@ -173,7 +173,7 @@ Raw samples should remain in ClickHouse. Stateful workers should convert meaning
 
 - [ ] Build model features from ClickHouse telemetry windows
 - [ ] Join telemetry features with event-store maintenance, alarm, intervention, and failure history
-- [ ] Emit `MaintenanceRiskScored` for every scored asset window
+- [x] Emit `MaintenanceRiskScored` for every scored asset window
 - [ ] Emit `MaintenanceRecommended` only when policy thresholds and cooldown rules are met
 - [ ] Capture model name, model version, feature-set version, threshold, score, and explanation metadata in inference events
 - [ ] Record whether a recommendation was acknowledged, acted upon, dismissed, or followed by failure
@@ -227,7 +227,7 @@ Generate alerts for:
 - [ ] Historical trend dashboard
 - [ ] PUE dashboard
 - [ ] Demand response dashboard
-- [ ] Event annotations over telemetry trends
+- [x] Event annotations over telemetry trends
 - [ ] Predictive-maintenance score and intervention dashboard
 
 ### React Operator Console

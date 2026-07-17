@@ -89,7 +89,7 @@ The same real-world occurrence can be represented in both stores at different le
 
 1. The simulator chooses a normal profile or a temporary scenario profile.
 2. It publishes metric payloads to Mosquitto topics such as `dc/telemetry/rack/rack-a01`.
-3. The ingest worker parses each payload, adds site, zone, asset class, severity, and alarm text, then writes batched rows into `dc_twin.telemetry_raw`.
+3. The ingest worker parses each payload, adds site, zone, asset class, severity, alarm text, UTC ingestion time, and MQTT source metadata, then writes batched rows into `dc_twin.telemetry_raw`.
 4. FastAPI reads ClickHouse for summary, recent telemetry, active alarms, and alert lifecycle views.
 5. The alerting worker evaluates ClickHouse queries on a schedule and writes alert events/actions.
 6. The maintenance worker builds metric baselines from recent telemetry and writes risk scores.
@@ -106,6 +106,8 @@ The same real-world occurrence can be represented in both stores at different le
 6. FastAPI combines event projections with ClickHouse telemetry so an operator can move from a durable event to the process values that explain it.
 7. Predictive-maintenance training joins ClickHouse feature windows with event-store labels such as maintenance actions, interventions, recoveries, and failures.
 8. Later, a transactional outbox can publish committed events to NATS JetStream for durable asynchronous processing without making the broker the source of truth.
+
+The current Phase 2 UI integration is intentionally direct: FastAPI exposes recent event envelopes to the React console, and Grafana reads the PostgreSQL event store as a datasource for dashboard annotations. Projected read models can replace or enrich these direct queries later.
 
 ## Canonical Event Envelope
 
@@ -197,7 +199,8 @@ The demand-response scenario now emits the first API-side event sequence into Po
 
 - FastAPI exposes Prometheus metrics at `/metrics`.
 - Prometheus scrapes the API service inside the Compose network.
-- Grafana provisions both ClickHouse and Prometheus datasources.
+- Grafana provisions ClickHouse, Prometheus, and PostgreSQL event-store datasources.
+- Telemetry dashboards include query-backed domain-event annotations from PostgreSQL.
 - Grafana dashboards are checked in as JSON so dashboard changes can be reviewed.
 - Phase 2 should add event append latency, append failures, optimistic-concurrency conflicts, projector lag, projector retries, dead-letter counts, and telemetry-to-event detection metrics.
 

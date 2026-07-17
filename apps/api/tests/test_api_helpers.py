@@ -139,6 +139,14 @@ def test_get_latest_acknowledgement_returns_latest_row():
     assert api.get_latest_acknowledgement(client, "alert-1") == row
 
 
+def test_valid_alert_metric_clause_filters_known_metric_asset_pairs():
+    clause = api.valid_alert_metric_clause()
+
+    assert "(metric = 'rack_temp_c' AND asset_type = 'rack')" in clause
+    assert "(metric = 'hvac_supply_temp_c' AND asset_type = 'hvac')" in clause
+    assert "(metric = 'ups_battery_pct' AND asset_type = 'power')" in clause
+
+
 def test_seconds_between_returns_none_if_missing_values():
     assert api.seconds_between(None, datetime.now(UTC)) is None
     assert api.seconds_between(datetime.now(UTC), None) is None

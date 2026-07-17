@@ -176,6 +176,7 @@ For shareable deployments, publish immutable tags to a registry such as GitHub C
 - The repo uses a uv workspace at the root, with the Python package defined in `apps/api/pyproject.toml`.
 - ClickHouse automatically applies the SQL files mounted from `deploy/clickhouse/sql/` on first startup of a fresh `clickhouse_data` volume.
 - PostgreSQL automatically applies `deploy/postgres/sql/init.sql` on first startup of a fresh `postgres_data` volume, creating the append-only `event_store.events` table.
+- Grafana provisions an `Event Store` PostgreSQL datasource and overlays domain events as annotations on the telemetry dashboards.
 - Grafana provisions ClickHouse and Prometheus datasources automatically and loads starter dashboards for facility telemetry and API monitoring.
 - Grafana also provisions `Mini DC Facility Trends Live`, a copy of the facility dashboard that reads raw telemetry timestamps without minute bucketing so live scenario testing shows every simulator step.
 - Trend dashboards now include threshold lines that match the warning and critical alarm rules in `app/logic.py`, and the asset trend dashboard exposes Grafana variables for rack, HVAC, and power asset selection.
@@ -183,6 +184,7 @@ For shareable deployments, publish immutable tags to a registry such as GitHub C
 - Scenario profiles now progress through staged behavior over their duration instead of jumping directly to a single failure snapshot, making transfer events, recovery ramps, and compensating equipment behavior easier to observe.
 - The demand-response profile adds utility price, utility capacity, GPU load, GPU power, load-shed percentage, chilled-water loop, PUE, and power-cost telemetry while reusing the existing ClickHouse telemetry table.
 - The demand-response API trigger emits the first durable PostgreSQL domain-event sequence: scenario started, price spike detected, policy evaluated, load shedding requested, and equipment command issued.
+- The React console includes an `Events` tab backed by `GET /events/recent`; event fetches are a soft dependency so telemetry and alarms still render if the event store is temporarily unavailable.
 - Default Grafana login comes from `.env`, and the provisioned home dashboard is `Mini DC Operations Overview`.
 - Grafana runs with anonymous viewer access and `allow_embedding` enabled so the React console can embed the most critical panels directly in the operator workflow.
 - FastAPI exposes Prometheus-style metrics at `/metrics`, and Prometheus scrapes the containerized API from `api:8000` for the API monitoring dashboard.

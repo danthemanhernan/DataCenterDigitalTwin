@@ -1,0 +1,15 @@
+apiVersion: 1
+datasources:
+  - name: Event Store
+    uid: postgres-events
+    type: postgres
+    access: proxy
+    url: ${EVENT_STORE_HOST}:${EVENT_STORE_PORT}
+    user: ${EVENT_STORE_USER}
+    jsonData:
+      database: ${EVENT_STORE_DATABASE}
+      sslmode: disable
+      postgresVersion: 1600
+      timescaledb: false
+    secureJsonData:
+      password: ${EVENT_STORE_PASSWORD}

@@ -18,11 +18,13 @@ from prometheus_client import (
 from pydantic import BaseModel, Field
 
 from .alerting import (
+    ALERT_METRIC_ASSET_TYPES,
     ALERT_RULES,
     ensure_alerting_schema,
     get_alert_state,
     record_alert_action,
 )
+from .domain_events import emit_domain_event
 from .event_store import EVENT_STORE_ENABLED, EventEnvelope, append_event, list_recent_events
 from .logic import (
     SCENARIOS,
@@ -219,6 +221,39 @@ def emit_scenario_started_events(scenario: dict[str, Any]) -> list[EventEnvelope
     return [started, price_spike, policy, load_shed, command]
 
 
+def emit_scenario_completed_event(scenario: dict[str, Any], reason: str) -> EventEnvelope | None:
+    return emit_domain_event(
+        event_type="ScenarioCompleted",
+        stream_id=f"scenario:{scenario['scenario_id']}",
+        source="api",
+        scenario_id=scenario["scenario_id"],
+        correlation_id=UUID(scenario["correlation_id"]),
+        payload={"scenario": scenario["scenario"], "reason": reason},
+        metadata={"scenario": scenario["scenario"]},
+        idempotency_key=f"{scenario['scenario_id']}:scenario-completed",
+    )
+
+
+def emit_alert_action_event(action: dict[str, Any]) -> EventEnvelope | None:
+    event_type = "AlertAcknowledged" if action["action"] == "acknowledge" else "OperatorActionRecorded"
+
+    return emit_domain_event(
+        event_type=event_type,
+        stream_id=f"alert:{action['alert_key']}",
+        source="api",
+        asset_id=action["alert_key"],
+        asset_type="alert",
+        payload={
+            "alert_key": action["alert_key"],
+            "action": action["action"],
+            "actor": action["actor"],
+            "note": action["note"],
+        },
+        metadata={"operator_action": True},
+        idempotency_key=f"alert-action:{action['alert_key']}:{action['ts']}:{action['action']}",
+    )
+
+
 def serialize_alert_state(alert_state: dict[str, Any]) -> dict[str, Any]:
     muted_until = alert_state.get("muted_until")
     shelved_until = alert_state.get("shelved_until")
@@ -296,6 +331,13 @@ def get_latest_acknowledgement(client: Any, alert_key: str) -> dict[str, Any] | 
     return rows[0] if rows else None
 
 
+def valid_alert_metric_clause() -> str:
+    return " OR ".join(
+        f"(metric = '{metric}' AND asset_type = '{asset_type}')"
+        for metric, asset_type in ALERT_METRIC_ASSET_TYPES.items()
+    )
+
+
 def seconds_between(start: Any, end: Any) -> int | None:
     if not start or not end:
         return None
@@ -351,7 +393,10 @@ def simulator_scenario() -> dict[str, Any]:
 
 @app.delete("/simulator/scenario")
 def reset_simulator_scenario() -> dict[str, Any]:
+    scenario = get_active_simulator_scenario()
     clear_simulator_control()
+    if scenario:
+        emit_scenario_completed_event(scenario, reason="operator_reset")
     return serialize_scenario_state(None)
 
 
@@ -422,19 +467,47 @@ def recent_alerts(limit: int = 50):
     client = get_client()
     ensure_alerting_schema(client)
     result = client.query(
-        """
+        f"""
         SELECT
             ts,
             alert_key,
-            rule_name,
-            asset_id,
-            severity,
-            metric,
-            current_value,
-            threshold_value,
+            latest_rule_name AS rule_name,
+            latest_asset_id AS asset_id,
+            latest_severity AS severity,
+            latest_metric AS metric,
+            latest_current_value AS current_value,
+            latest_threshold_value AS threshold_value,
             observation_count,
-            message
-        FROM dc_twin.v_recent_alerts
+            latest_message AS message
+        FROM (
+            SELECT
+                max(event_ts) AS ts,
+                alert_key,
+                argMax(rule_name, event_ts) AS latest_rule_name,
+                argMax(asset_id, event_ts) AS latest_asset_id,
+                argMax(severity, event_ts) AS latest_severity,
+                argMax(metric, event_ts) AS latest_metric,
+                argMax(current_value, event_ts) AS latest_current_value,
+                argMax(threshold_value, event_ts) AS latest_threshold_value,
+                max(observation_count) AS observation_count,
+                argMax(message, event_ts) AS latest_message
+            FROM (
+                SELECT
+                    ts AS event_ts,
+                    alert_key,
+                    rule_name,
+                    asset_id,
+                    severity,
+                    metric,
+                    current_value,
+                    threshold_value,
+                    observation_count,
+                    message
+                FROM dc_twin.v_recent_alerts
+                WHERE {valid_alert_metric_clause()}
+            )
+            GROUP BY alert_key
+        )
         ORDER BY ts DESC
         LIMIT %(limit)s
         """,
@@ -510,6 +583,7 @@ def acknowledge_alert(alert_key: str, payload: AlertActionRequest):
         actor=payload.actor,
         note=payload.note,
     )
+    emit_alert_action_event(action)
     return {
         "action": {
             **action,
@@ -533,6 +607,7 @@ def mute_alert(alert_key: str, payload: AlertMuteRequest):
         note=payload.note,
         muted_until=muted_until,
     )
+    emit_alert_action_event(action)
     return {
         "action": {
             **action,
@@ -555,6 +630,7 @@ def unmute_alert(alert_key: str, payload: AlertActionRequest):
         note=payload.note,
         muted_until=None,
     )
+    emit_alert_action_event(action)
     return {
         "action": {
             **action,
@@ -578,6 +654,7 @@ def shelve_alert(alert_key: str, payload: AlertShelveRequest):
         note=payload.note,
         shelved_until=shelved_until,
     )
+    emit_alert_action_event(action)
     return {
         "action": {
             **action,
@@ -600,6 +677,7 @@ def unshelve_alert(alert_key: str, payload: AlertActionRequest):
         note=payload.note,
         shelved_until=None,
     )
+    emit_alert_action_event(action)
     return {
         "action": {
             **action,

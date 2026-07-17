@@ -140,7 +140,7 @@ services:
     command: python -m app.simulator
     environment:
       <<: *app_environment
-      SIM_INTERVAL_SECONDS: ${SIM_INTERVAL_SECONDS:-2.0}
+      SIM_INTERVAL_SECONDS: ${SIM_INTERVAL_SECONDS:-0.1}
     volumes:
       - simulator_runtime:/runtime
     depends_on:

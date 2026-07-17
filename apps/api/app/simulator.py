@@ -25,7 +25,7 @@ load_dotenv()
 MQTT_HOST = os.getenv("MQTT_HOST", "localhost")
 MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
 MQTT_TOPIC_ROOT = os.getenv("MQTT_TOPIC_ROOT", "dc/telemetry")
-PUBLISH_INTERVAL_SECONDS = float(os.getenv("SIM_INTERVAL_SECONDS", "2.0"))
+PUBLISH_INTERVAL_SECONDS = float(os.getenv("SIM_INTERVAL_SECONDS", "0.1"))
 SCENARIO_ASSETS = {
     "power_outage": ("utility-grid", "utility"),
     "cooling_degradation": ("cooling-loop-a", "cooling"),

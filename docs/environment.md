@@ -11,7 +11,7 @@ Frontend-only development can also use `apps/operator-console/.env`, starting fr
 | `MQTT_HOST` | `localhost` locally, `mqtt` in Compose app containers | simulator, ingest, API env anchor | MQTT broker hostname. |
 | `MQTT_PORT` | `1883` | simulator, ingest, Compose port mapping | MQTT broker port. |
 | `MQTT_TOPIC_ROOT` | `dc/telemetry` | simulator, ingest | Root topic for telemetry publish/subscribe. |
-| `SIM_INTERVAL_SECONDS` | `2.0` | simulator | Delay between simulator publish loops. |
+| `SIM_INTERVAL_SECONDS` | `0.1` | simulator | Delay between simulator publish loops; the default is 10 Hz. |
 | `SIMULATOR_CONTROL_PATH` | `/runtime/simulator-control.json` in Compose | API, simulator | Shared scenario-control file path. |
 
 ## Ingest

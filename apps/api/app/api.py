@@ -18,8 +18,8 @@ from prometheus_client import (
 from pydantic import BaseModel, Field
 
 from .alerting import (
-    ALERT_RULES,
     ALERT_METRIC_ASSET_TYPES,
+    ALERT_RULES,
     ensure_alerting_schema,
     get_alert_state,
     record_alert_action,

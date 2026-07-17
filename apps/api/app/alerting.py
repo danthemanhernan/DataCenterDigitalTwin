@@ -8,6 +8,8 @@ from typing import Any
 import clickhouse_connect
 from dotenv import load_dotenv
 
+from .domain_events import emit_domain_event
+
 load_dotenv()
 
 
@@ -434,6 +436,42 @@ def insert_alert_event(client: Any, row: dict[str, Any]) -> None:
     )
 
 
+def emit_alert_domain_events(row: dict[str, Any]) -> None:
+    threshold = emit_domain_event(
+        event_type="ThresholdExceeded",
+        stream_id=f"alert:{row['alert_key']}",
+        source=row["source"],
+        asset_id=row["asset_id"],
+        asset_type=row["asset_type"],
+        payload={
+            "alert_key": row["alert_key"],
+            "metric": row["metric"],
+            "current_value": row["current_value"],
+            "threshold_value": row["threshold_value"],
+            "severity": row["severity"],
+        },
+        metadata={"rule_name": row["rule_name"]},
+        idempotency_key=f"{row['alert_key']}:{row['ts']}:threshold-exceeded",
+    )
+    emit_domain_event(
+        event_type="AlertRaised",
+        stream_id=f"alert:{row['alert_key']}",
+        source=row["source"],
+        asset_id=row["asset_id"],
+        asset_type=row["asset_type"],
+        causation_id=threshold.event_id if threshold else None,
+        payload={
+            "alert_key": row["alert_key"],
+            "rule_name": row["rule_name"],
+            "severity": row["severity"],
+            "status": row["status"],
+            "message": row["message"],
+        },
+        metadata={"metric": row["metric"], "observation_count": row["observation_count"]},
+        idempotency_key=f"{row['alert_key']}:{row['ts']}:alert-raised",
+    )
+
+
 def evaluate_rules(client: Any) -> list[dict[str, Any]]:
     candidates: list[dict[str, Any]] = []
     for rule in ALERT_RULES:
@@ -458,6 +496,7 @@ def run_alert_cycle(client: Any) -> list[dict[str, Any]]:
     emitted: list[dict[str, Any]] = []
     for candidate in evaluate_rules(client):
         insert_alert_event(client, candidate)
+        emit_alert_domain_events(candidate)
         emitted.append(candidate)
     return emitted
 

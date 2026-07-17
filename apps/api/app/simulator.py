@@ -1,11 +1,13 @@
 import json
 import os
 import time
+from uuid import UUID
 
 import paho.mqtt.client as mqtt
 from dotenv import load_dotenv
 from paho.mqtt.client import CallbackAPIVersion
 
+from .domain_events import emit_domain_event
 from .logic import (
     generate_cooling_degradation_points,
     generate_demand_response_points,
@@ -31,8 +33,36 @@ def main() -> None:
     client.connect(MQTT_HOST, MQTT_PORT, keepalive=60)
 
     print(f"Publishing simulated telemetry to mqtt://{MQTT_HOST}:{MQTT_PORT}")
+    previous_scenario_id = None
+    previous_scenario = None
     while True:
         scenario = get_active_simulator_scenario()
+        if scenario and scenario["scenario_id"] != previous_scenario_id:
+            emit_domain_event(
+                event_type="EquipmentStateChanged",
+                stream_id=f"asset:scenario:{scenario['scenario_id']}",
+                source="simulator",
+                asset_id=scenario["scenario"],
+                asset_type="scenario",
+                correlation_id=UUID(scenario["correlation_id"]),
+                scenario_id=scenario["scenario_id"],
+                payload={"state": "active", "scenario": scenario["scenario"]},
+                idempotency_key=f"{scenario['scenario_id']}:equipment-state-active",
+            )
+        if scenario is None and previous_scenario is not None:
+            emit_domain_event(
+                event_type="EquipmentRecovered",
+                stream_id=f"asset:scenario:{previous_scenario['scenario_id']}",
+                source="simulator",
+                asset_id=previous_scenario["scenario"],
+                asset_type="scenario",
+                correlation_id=UUID(previous_scenario["correlation_id"]),
+                scenario_id=previous_scenario["scenario_id"],
+                payload={"state": "recovered", "scenario": previous_scenario["scenario"]},
+                idempotency_key=f"{previous_scenario['scenario_id']}:equipment-recovered",
+            )
+        previous_scenario_id = scenario["scenario_id"] if scenario else None
+        previous_scenario = scenario
         scenario_name = scenario["scenario"] if scenario else None
         scenario_generators = {
             "power_outage": generate_power_outage_points,

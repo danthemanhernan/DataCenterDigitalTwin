@@ -127,29 +127,29 @@ Use a separate durable event store for lower-volume, higher-value facts describi
 ### Initial Domain Events
 
 - [x] `ScenarioStarted`
-- [ ] `ScenarioCompleted`
+- [x] `ScenarioCompleted`
 - [x] `UtilityPriceSpikeDetected`
 - [x] `DemandResponsePolicyEvaluated`
 - [x] `LoadSheddingRequested`
 - [x] `EquipmentCommandIssued`
-- [ ] `EquipmentStateChanged`
-- [ ] `ThresholdExceeded`
-- [ ] `AlertRaised`
-- [ ] `AlertAcknowledged`
+- [x] `EquipmentStateChanged`
+- [x] `ThresholdExceeded`
+- [x] `AlertRaised`
+- [x] `AlertAcknowledged`
 - [ ] `AlertCleared`
 - [ ] `AnomalyDetected`
-- [ ] `MaintenanceRiskScored`
-- [ ] `MaintenanceRecommended`
+- [x] `MaintenanceRiskScored`
+- [x] `MaintenanceRecommended`
 - [ ] `MaintenanceWorkStarted`
 - [ ] `MaintenanceCompleted`
 - [ ] `EquipmentFailureSimulated`
-- [ ] `EquipmentRecovered`
+- [x] `EquipmentRecovered`
 
 ### Event Producers and Projectors
 
 - [x] Add a reusable Python event-envelope package shared by API and workers
 - [x] Add an event-writer abstraction so application code does not depend directly on PostgreSQL or EventStoreDB APIs
-- [ ] Emit events from scenario control, alerting, maintenance scoring, operator actions, and simulated equipment state transitions
+- [x] Emit events from scenario control, alerting, maintenance scoring, operator actions, and simulated equipment state transitions
 - [ ] Build an event projector that creates an asset timeline read model
 - [ ] Build an event projector that creates alert-lifecycle views
 - [ ] Build an event projector that creates maintenance-history views

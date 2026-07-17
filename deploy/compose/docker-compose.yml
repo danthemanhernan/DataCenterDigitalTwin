@@ -191,6 +191,12 @@ services:
       - --limit
       - ${MAINTENANCE_MODEL_ROW_LIMIT:-100000}
     environment:
+      EVENT_STORE_ENABLED: ${EVENT_STORE_ENABLED:-true}
+      EVENT_STORE_HOST: postgres
+      EVENT_STORE_PORT: 5432
+      EVENT_STORE_USER: ${EVENT_STORE_USER}
+      EVENT_STORE_PASSWORD: ${EVENT_STORE_PASSWORD}
+      EVENT_STORE_DATABASE: ${EVENT_STORE_DATABASE}
       CLICKHOUSE_HOST: clickhouse
       CLICKHOUSE_PORT: 8123
       CLICKHOUSE_USER: ${CLICKHOUSE_USER}
@@ -198,6 +204,8 @@ services:
       CLICKHOUSE_DATABASE: ${CLICKHOUSE_DATABASE}
     depends_on:
       clickhouse:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
     restart: unless-stopped
 

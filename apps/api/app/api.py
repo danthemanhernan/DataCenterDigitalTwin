@@ -24,6 +24,7 @@ from .alerting import (
     get_alert_state,
     record_alert_action,
 )
+from .domain_events import emit_domain_event
 from .event_store import EVENT_STORE_ENABLED, EventEnvelope, append_event, list_recent_events
 from .logic import (
     SCENARIOS,
@@ -220,6 +221,39 @@ def emit_scenario_started_events(scenario: dict[str, Any]) -> list[EventEnvelope
     return [started, price_spike, policy, load_shed, command]
 
 
+def emit_scenario_completed_event(scenario: dict[str, Any], reason: str) -> EventEnvelope | None:
+    return emit_domain_event(
+        event_type="ScenarioCompleted",
+        stream_id=f"scenario:{scenario['scenario_id']}",
+        source="api",
+        scenario_id=scenario["scenario_id"],
+        correlation_id=UUID(scenario["correlation_id"]),
+        payload={"scenario": scenario["scenario"], "reason": reason},
+        metadata={"scenario": scenario["scenario"]},
+        idempotency_key=f"{scenario['scenario_id']}:scenario-completed",
+    )
+
+
+def emit_alert_action_event(action: dict[str, Any]) -> EventEnvelope | None:
+    event_type = "AlertAcknowledged" if action["action"] == "acknowledge" else "OperatorActionRecorded"
+
+    return emit_domain_event(
+        event_type=event_type,
+        stream_id=f"alert:{action['alert_key']}",
+        source="api",
+        asset_id=action["alert_key"],
+        asset_type="alert",
+        payload={
+            "alert_key": action["alert_key"],
+            "action": action["action"],
+            "actor": action["actor"],
+            "note": action["note"],
+        },
+        metadata={"operator_action": True},
+        idempotency_key=f"alert-action:{action['alert_key']}:{action['ts']}:{action['action']}",
+    )
+
+
 def serialize_alert_state(alert_state: dict[str, Any]) -> dict[str, Any]:
     muted_until = alert_state.get("muted_until")
     shelved_until = alert_state.get("shelved_until")
@@ -359,7 +393,10 @@ def simulator_scenario() -> dict[str, Any]:
 
 @app.delete("/simulator/scenario")
 def reset_simulator_scenario() -> dict[str, Any]:
+    scenario = get_active_simulator_scenario()
     clear_simulator_control()
+    if scenario:
+        emit_scenario_completed_event(scenario, reason="operator_reset")
     return serialize_scenario_state(None)
 
 
@@ -546,6 +583,7 @@ def acknowledge_alert(alert_key: str, payload: AlertActionRequest):
         actor=payload.actor,
         note=payload.note,
     )
+    emit_alert_action_event(action)
     return {
         "action": {
             **action,
@@ -569,6 +607,7 @@ def mute_alert(alert_key: str, payload: AlertMuteRequest):
         note=payload.note,
         muted_until=muted_until,
     )
+    emit_alert_action_event(action)
     return {
         "action": {
             **action,
@@ -591,6 +630,7 @@ def unmute_alert(alert_key: str, payload: AlertActionRequest):
         note=payload.note,
         muted_until=None,
     )
+    emit_alert_action_event(action)
     return {
         "action": {
             **action,
@@ -614,6 +654,7 @@ def shelve_alert(alert_key: str, payload: AlertShelveRequest):
         note=payload.note,
         shelved_until=shelved_until,
     )
+    emit_alert_action_event(action)
     return {
         "action": {
             **action,
@@ -636,6 +677,7 @@ def unshelve_alert(alert_key: str, payload: AlertActionRequest):
         note=payload.note,
         shelved_until=None,
     )
+    emit_alert_action_event(action)
     return {
         "action": {
             **action,

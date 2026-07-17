@@ -184,6 +184,35 @@ def test_insert_alert_event_forwards_data_to_client():
     assert inserted["data"][0][7] == "critical"
 
 
+def test_emit_alert_domain_events_emits_threshold_and_raise(monkeypatch):
+    emitted = []
+
+    def fake_emit_domain_event(**kwargs):
+        emitted.append(kwargs)
+        return None
+
+    monkeypatch.setattr(alerting, "emit_domain_event", fake_emit_domain_event)
+    row = {
+        "ts": datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC),
+        "alert_key": "alert-1",
+        "rule_name": "test-rule",
+        "asset_type": "rack",
+        "asset_id": "rack-1",
+        "severity": "critical",
+        "status": "open",
+        "metric": "rack_temp_c",
+        "message": "high temperature",
+        "current_value": 40.0,
+        "threshold_value": 38.0,
+        "observation_count": 2,
+        "source": "python-alerting",
+    }
+
+    alerting.emit_alert_domain_events(row)
+
+    assert [event["event_type"] for event in emitted] == ["ThresholdExceeded", "AlertRaised"]
+
+
 def test_alert_rules_scope_metrics_to_canonical_asset_types():
     expected_filters = {
         "repeated_critical_rack_temp": "asset_type = 'rack'",

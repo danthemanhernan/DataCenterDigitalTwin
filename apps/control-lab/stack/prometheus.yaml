@@ -1,0 +1,7 @@
+global:
+  scrape_interval: 5s
+rule_files: [rules.yaml]
+scrape_configs:
+  - job_name: twin
+    static_configs:
+      - targets: ['gateway:8000']

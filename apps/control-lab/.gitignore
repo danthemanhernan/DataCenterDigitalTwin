@@ -1,0 +1,7 @@
+node_modules/
+dist/
+__pycache__/
+.env
+
+stack/data/*
+!stack/data/.gitkeep

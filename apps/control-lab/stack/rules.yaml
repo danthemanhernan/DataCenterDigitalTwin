@@ -1,0 +1,13 @@
+groups:
+  - name: twin
+    rules:
+      - alert: TwinTelemetryStale
+        expr: time() - twin_last_ingest_unixtime > 30
+        for: 10s
+        annotations:
+          summary: The gateway has received no new telemetry for over 30 seconds
+      - alert: TwinGatewayDown
+        expr: up{job="twin"} == 0
+        for: 10s
+        annotations:
+          summary: Prometheus cannot scrape the gateway

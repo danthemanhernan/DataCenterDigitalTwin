@@ -1,0 +1,132 @@
+{
+  "title": "Twin telemetry",
+  "uid": "twin-telemetry",
+  "schemaVersion": 39,
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "refresh": "5s",
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Rack inlet",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "twin-prom"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "twin_inlet_c",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "twin-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius"
+        }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Facility power",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "twin-prom"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "twin_facility_kw",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "twin-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "kwatt"
+        }
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Seconds since last event",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "twin-prom"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "time() - twin_last_ingest_unixtime",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "twin-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      },
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      }
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Ingest write failures",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "twin-prom"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "twin_write_failures_total",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "twin-prom"
+          }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      }
+    }
+  ]
+}

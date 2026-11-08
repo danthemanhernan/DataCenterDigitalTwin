@@ -21,6 +21,10 @@ Open:
 - Prometheus: `http://localhost:9090`
 - MQTT broker: `localhost:1883`
 
+## Interactive control lab
+
+The [Data Center Control Lab](apps/control-lab/README.md) is a standalone browser workspace for cooling and power experiments, fault injection, and guided labs. Follow its setup instructions to run it alongside the operator console on port 5174.
+
 ## Documentation
 
 - [Master roadmap](docs/roadmap/MASTER_ROADMAP.md)
